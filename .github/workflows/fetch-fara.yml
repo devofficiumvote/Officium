@@ -1,0 +1,39 @@
+name: Fetch FARA Data
+
+on:
+  schedule:
+    # Weekly on Monday at 6:00 AM UTC
+    - cron: '0 6 * * 1'
+  workflow_dispatch: # Allow manual trigger
+
+jobs:
+  fetch-fara:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Fetch FARA data
+        run: node scripts/fetch-fara.mjs
+
+      - name: Check for changes
+        id: changes
+        run: |
+          git diff --quiet public/data/ && echo "changed=false" >> $GITHUB_OUTPUT || echo "changed=true" >> $GITHUB_OUTPUT
+
+      - name: Commit and push updated data
+        if: steps.changes.outputs.changed == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add public/data/fara-registrants.json public/data/fara-principals.json
+          git commit -m "chore: update FARA data $(date -u +%Y-%m-%d)"
+          git push

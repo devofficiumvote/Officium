@@ -1,0 +1,21 @@
+{
+	"siteId": "f9807852-8c50-4f96-b81a-5023409f05be",
+	"geolocation": {
+		"data": {
+			"city": "Sterling",
+			"country": {
+				"code": "US",
+				"name": "United States"
+			},
+			"subdivision": {
+				"code": "VA",
+				"name": "Virginia"
+			},
+			"timezone": "America/New_York",
+			"latitude": 39.0258,
+			"longitude": -77.3983,
+			"postalCode": "20164"
+		},
+		"timestamp": 1776021100744
+	}
+}
