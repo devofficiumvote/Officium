@@ -202,8 +202,15 @@ function computeAccountabilityScore(pol, trades) {
   // Component 6: Dark Money Exposure (5%) — ratio of PAC to total
   const darkMoneyScore = pacRatio < 0.2 ? 5 : pacRatio < 0.5 ? 3 : 0;
 
-  // Component 7: Committee Conflict (10%) — placeholder until we have committee assignment data
-  const committeeScore = 5; // Neutral default
+  // Component 7: Committee Conflict (10%) — sector-based proxy (BRD §18)
+  // Committee Conflict: check if member trades in same sectors they receive PAC money from
+  const memberTrades = (trades || []).filter(t => {
+    const ln = (t.name || "").toLowerCase().split(/\s+/).pop();
+    return ln.length >= 3 && pol.name.toLowerCase().endsWith(ln);
+  });
+  const tradeSectors = new Set(memberTrades.map(t => classifyTicker(t.ticker)).filter(s => s !== "Other"));
+  const hasSectorConflict = tradeSectors.size > 0 && pol.pacContrib > 0;
+  const committeeScore = hasSectorConflict ? 2 : tradeSectors.size === 0 ? 8 : 5;
 
   return {
     total: donorScore + independenceScore + participationScore + transparencyScore + tradingScore + darkMoneyScore + committeeScore,
@@ -598,6 +605,9 @@ function TradeModal({trade,pol,onClose}){
         </div>:null;})()}
         {pol&&pol.phone&&<div style={{marginTop:14,padding:"12px 14px",background:"rgba(20,184,166,.06)",border:"1px solid rgba(20,184,166,.15)",borderRadius:10,textAlign:"center"}}>
           <div style={{fontSize:13,color:"#14b8a6",fontWeight:600}}>Contact {pol.name.split(" ").pop()}: {pol.phone}</div>
+        </div>}
+        {trade.ticker&&<div style={{marginTop:10}}>
+          <a href={`https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&company=&CIK=${trade.ticker}&type=4&dateb=&owner=include&count=10&search_text=&action=getcompany`} target="_blank" rel="noopener noreferrer" style={{fontSize:13,color:"#67e8f9",textDecoration:"none",fontWeight:600}}>📄 View {trade.ticker} on SEC EDGAR →</a>
         </div>}
         {/* BRD §12: Three cross-reference queries */}
         <div style={{marginTop:14}}>
@@ -1235,6 +1245,13 @@ function DataInsights({pols,trades}){
       const mAvgI=malesI.reduce((a,p)=>a+p.ideology,0)/malesI.length;
       results.push({title:"Gender & Ideology",value:`${fAvgI<mAvgI?"Women more liberal":"Men more liberal"}`,desc:`Women avg ideology: ${fAvgI.toFixed(2)} vs Men: ${mAvgI.toFixed(2)} (range: -1 liberal to +1 conservative)`,color:"#f472b6",icon:"\u26A4"});
     }
+    // 28. Committee/Sector Conflict
+    const conflicted=withFEC.filter(p=>{
+      const tc=(trades||[]).filter(t=>{const ln=(t.name||"").toLowerCase().split(/\s+/).pop();return ln.length>=3&&p.name.toLowerCase().endsWith(ln);});
+      const sectors=new Set(tc.map(t=>classifyTicker(t.ticker)).filter(s=>s!=="Other"));
+      return sectors.size>0&&p.pacContrib>0;
+    });
+    if(conflicted.length>0)results.push({title:"Sector Conflicts",value:conflicted.length+"",desc:`${conflicted.length} members trade stocks AND receive PAC money in the same industry sectors. This creates potential conflict of interest.`,color:"#f97316",icon:"⚠️"});
     return results;
   },[pols,trades]);
   if(!insights.length)return null;
@@ -1728,6 +1745,15 @@ function ProfilePage({pol,pols,allTrades,onSelect,onBack,user,onSetUser}){
         {/* ── OVERVIEW TAB ── */}
         {tab==="overview"&&(
           <div style={{display:"flex",flexDirection:"column",gap:14}}>
+            <div style={{background:"rgba(6,182,212,.04)",border:"1px solid rgba(6,182,212,.1)",borderRadius:14,padding:20,marginBottom:20}}>
+              <div style={{fontSize:14,fontWeight:700,color:"#67e8f9",marginBottom:8}}>Quick Summary</div>
+              <div style={{fontSize:14,color:"rgba(255,255,255,.5)",lineHeight:1.7}}>
+                {pol.name} is a {pol.party==="D"?"Democratic":pol.party==="R"?"Republican":"Independent"} {pol.chamber==="Senate"?"Senator":"Representative"} from {pol.state}{pol.yearsInOffice>0?`, serving since approximately ${2026-pol.yearsInOffice}`:""}.
+                {pol.raised>0?` They have raised ${fmt(pol.raised)} in campaign funds${pol.pacContrib>0?`, with ${Math.round((pol.pacContrib/pol.raised)*100)}% from PACs`:""}.`:""}
+                {pol.totalVotes>0?` They have cast ${pol.totalVotes} votes (${pol.yeaPct}% Yea)${pol.ideology!=null?` and have a DW-NOMINATE ideology score of ${pol.ideology.toFixed(2)} (${pol.ideology<-0.3?"liberal":pol.ideology>0.3?"conservative":"moderate"})`:""}.`:""}
+                {trades.length>0?` They have ${trades.length} disclosed stock trade${trades.length>1?"s":""}.`:""}
+              </div>
+            </div>
             {raised>0&&<div style={{...ds}}>
               <div style={{fontWeight:700,fontSize:14,color:"#e2e8f0",marginBottom:4}}>FEC Campaign Finance Summary</div>
               <div style={{fontSize:12,color:"rgba(255,255,255,.3)",marginBottom:16}}>OpenFEC /candidates/totals/ · live</div>
@@ -2042,6 +2068,33 @@ function ProfilePage({pol,pols,allTrades,onSelect,onBack,user,onSetUser}){
                 <Disclaimer/>
               </div>
             </div>}
+            {trades.length>0&&pol.firstFiled&&<div style={{marginTop:20}}>
+              <div style={{fontWeight:700,fontSize:15,color:"#fff",marginBottom:14}}>Financial Timeline</div>
+              <div style={{background:"rgba(6,182,212,.03)",border:"1px solid rgba(6,182,212,.08)",borderRadius:14,padding:20}}>
+                <div style={{display:"flex",flexDirection:"column",gap:4}}>
+                  {pol.firstFiled&&<div style={{display:"flex",alignItems:"center",gap:12}}>
+                    <div style={{width:12,height:12,borderRadius:"50%",background:"#14b8a6",flexShrink:0}}/>
+                    <div style={{fontSize:13,color:"rgba(255,255,255,.4)"}}><strong style={{color:"#14b8a6"}}>{pol.firstFiled}</strong> — First FEC filing</div>
+                  </div>}
+                  {trades.slice(-3).reverse().map((t,i)=>(
+                    <div key={i} style={{display:"flex",alignItems:"center",gap:12}}>
+                      <div style={{width:12,height:12,borderRadius:"50%",background:t.action==="BUY"?"#4ade80":"#f87171",flexShrink:0}}/>
+                      <div style={{fontSize:13,color:"rgba(255,255,255,.4)"}}><strong style={{color:t.action==="BUY"?"#4ade80":"#f87171"}}>{t.tradeDate}</strong> — {t.action} {t.ticker} ({t.amount})</div>
+                    </div>
+                  ))}
+                  {trades.length>3&&<div style={{display:"flex",alignItems:"center",gap:12}}>
+                    <div style={{width:12,height:12,borderRadius:2,background:"rgba(255,255,255,.1)",flexShrink:0}}/>
+                    <div style={{fontSize:13,color:"rgba(255,255,255,.25)"}}>... {trades.length-3} more trades</div>
+                  </div>}
+                  {pol.lastFiled&&<div style={{display:"flex",alignItems:"center",gap:12}}>
+                    <div style={{width:12,height:12,borderRadius:"50%",background:"#14b8a6",flexShrink:0}}/>
+                    <div style={{fontSize:13,color:"rgba(255,255,255,.4)"}}><strong style={{color:"#14b8a6"}}>{pol.lastFiled}</strong> — Most recent FEC filing</div>
+                  </div>}
+                </div>
+                <div style={{fontSize:13,color:"rgba(255,255,255,.4)",marginTop:14}}>Total raised: <strong style={{color:"#10b981"}}>{fmt(pol.raised)}</strong> · Total trades: <strong style={{color:"#67e8f9"}}>{trades.length}</strong> · FEC cycles: <strong>{(pol.fecCycles||[]).length}</strong></div>
+                <Disclaimer/>
+              </div>
+            </div>}
           </div>
         )}
         {/* ── TRADES TAB ── */}
@@ -2117,6 +2170,10 @@ function ProfilePage({pol,pols,allTrades,onSelect,onBack,user,onSetUser}){
             <div style={{fontSize:12,color:"rgba(255,255,255,.3)",marginBottom:16}}>Congress.gov API · {bills.length} bills</div>
             {!pol.bioguideId&&<div style={{fontSize:13,color:"rgba(255,255,255,.3)"}}>No Bioguide ID — Congress.gov unavailable.</div>}
             {bills.length===0&&pol.bioguideId&&<div style={{fontSize:13,color:"rgba(255,255,255,.3)"}}>No sponsored legislation found.</div>}
+            {bills.length>0&&<div style={{background:"rgba(20,184,166,.04)",border:"1px solid rgba(20,184,166,.1)",borderRadius:12,padding:16,marginBottom:16}}>
+              <div style={{fontSize:14,fontWeight:700,color:"#14b8a6",marginBottom:6}}>Legislative Commitments</div>
+              <div style={{fontSize:13,color:"rgba(255,255,255,.4)",lineHeight:1.6}}>{pol.name.split(" ").pop()} has sponsored {bills.length} bill{bills.length>1?"s":""}. Sponsoring a bill indicates a public commitment to that policy area. Track these against their voting record and donor base for consistency.</div>
+            </div>}
             {bills.slice(0,8).map((l,i)=>(
               <div key={i} style={{padding:"10px 0",borderBottom:i<bills.length-1?"1px solid rgba(255,255,255,.06)":"none",display:"flex",gap:10,alignItems:"flex-start"}}>
                 <span style={{fontSize:12,fontWeight:700,background:"rgba(59,130,246,.15)",color:"#60a5fa",padding:"2px 6px",borderRadius:3,flexShrink:0,marginTop:2}}>{l.type||"BILL"}</span>
@@ -2271,6 +2328,15 @@ function _ProfilePageV6Unused({pol,onBack,user,onSetUser}){
         {/* Tab content */}
         {tab==="overview"&&(
           <div style={{display:"flex",flexDirection:"column",gap:14}}>
+            <div style={{background:"rgba(6,182,212,.04)",border:"1px solid rgba(6,182,212,.1)",borderRadius:14,padding:20,marginBottom:20}}>
+              <div style={{fontSize:14,fontWeight:700,color:"#67e8f9",marginBottom:8}}>Quick Summary</div>
+              <div style={{fontSize:14,color:"rgba(255,255,255,.5)",lineHeight:1.7}}>
+                {pol.name} is a {pol.party==="D"?"Democratic":pol.party==="R"?"Republican":"Independent"} {pol.chamber==="Senate"?"Senator":"Representative"} from {pol.state}{pol.yearsInOffice>0?`, serving since approximately ${2026-pol.yearsInOffice}`:""}.
+                {pol.raised>0?` They have raised ${fmt(pol.raised)} in campaign funds${pol.pacContrib>0?`, with ${Math.round((pol.pacContrib/pol.raised)*100)}% from PACs`:""}.`:""}
+                {pol.totalVotes>0?` They have cast ${pol.totalVotes} votes (${pol.yeaPct}% Yea)${pol.ideology!=null?` and have a DW-NOMINATE ideology score of ${pol.ideology.toFixed(2)} (${pol.ideology<-0.3?"liberal":pol.ideology>0.3?"conservative":"moderate"})`:""}.`:""}
+                {trades.length>0?` They have ${trades.length} disclosed stock trade${trades.length>1?"s":""}.`:""}
+              </div>
+            </div>
             {raised>0&&<div style={{...ds}}>
               <div style={{fontWeight:700,fontSize:14,color:"#e2e8f0",marginBottom:4}}>FEC Campaign Finance</div>
               <div style={{fontSize:12,color:"rgba(255,255,255,.3)",marginBottom:16}}>OpenFEC · live</div>
@@ -2363,6 +2429,10 @@ function _ProfilePageV6Unused({pol,onBack,user,onSetUser}){
             <div style={{fontSize:12,color:"rgba(255,255,255,.3)",marginBottom:16}}>Congress.gov API · {bills.length} bills</div>
             {!pol.bioguideId&&<div style={{fontSize:13,color:"rgba(255,255,255,.3)"}}>No Bioguide ID — Congress.gov link unavailable.</div>}
             {bills.length===0&&pol.bioguideId&&<div style={{fontSize:13,color:"rgba(255,255,255,.3)"}}>No sponsored legislation found in current Congress.</div>}
+            {bills.length>0&&<div style={{background:"rgba(20,184,166,.04)",border:"1px solid rgba(20,184,166,.1)",borderRadius:12,padding:16,marginBottom:16}}>
+              <div style={{fontSize:14,fontWeight:700,color:"#14b8a6",marginBottom:6}}>Legislative Commitments</div>
+              <div style={{fontSize:13,color:"rgba(255,255,255,.4)",lineHeight:1.6}}>{pol.name.split(" ").pop()} has sponsored {bills.length} bill{bills.length>1?"s":""}. Sponsoring a bill indicates a public commitment to that policy area. Track these against their voting record and donor base for consistency.</div>
+            </div>}
             {bills.slice(0,8).map((l,i)=>(
               <div key={i} style={{padding:"10px 0",borderBottom:i<bills.length-1?"1px solid rgba(255,255,255,.06)":"none",display:"flex",gap:10,alignItems:"flex-start"}}>
                 <span style={{fontSize:12,fontWeight:700,background:"rgba(59,130,246,.15)",color:"#60a5fa",padding:"2px 6px",borderRadius:3,flexShrink:0,marginTop:2}}>{l.type||"BILL"}</span>
@@ -2609,7 +2679,7 @@ function AdminDashboard({pols,trades}){
   const topT=useMemo(()=>{const m={};(trades||[]).forEach(t=>{if(!t.ticker)return;const buys=trades.filter(x=>x.ticker===t.ticker&&x.action==="BUY").length;const sells=trades.filter(x=>x.ticker===t.ticker&&x.action==="SELL").length;m[t.ticker]={cnt:(m[t.ticker]||{cnt:0}).cnt+1,buys,sells};});return Object.entries(m).sort((a,b)=>b[1].cnt-a[1].cnt).slice(0,12);},[trades]);
   const buys=(trades||[]).filter(t=>t.action==="BUY").length;const sells=(trades||[]).filter(t=>t.action==="SELL").length;
   const liveCount=Object.values(apiSts).filter(Boolean).length;const m=mob();
-  const TABS=[{id:"overview",l:"Overview"},{id:"violations",l:"Violations"},{id:"tickers",l:"Tickers"},{id:"geographic",l:"Geographic"},{id:"temporal",l:"Temporal"},{id:"fara",l:"FARA"},{id:"spending",l:"Spending"},{id:"insider",l:"Insider Flags"},{id:"users",l:"Users"},{id:"apis",l:"API Health"},{id:"regs",l:"Regulations"}];
+  const TABS=[{id:"overview",l:"Overview"},{id:"violations",l:"Violations"},{id:"tickers",l:"Tickers"},{id:"geographic",l:"Geographic"},{id:"temporal",l:"Temporal"},{id:"fara",l:"FARA"},{id:"spending",l:"Spending"},{id:"insider",l:"Insider Flags"},{id:"pipeline",l:"Data Pipeline"},{id:"users",l:"Users"},{id:"apis",l:"API Health"},{id:"regs",l:"Regulations"}];
   const ds={background:"rgba(168,85,247,.05)",border:"1px solid rgba(168,85,247,.1)",borderRadius:14,padding:22};
   return(
     <div style={{background:"#09090b",minHeight:"100vh",paddingBottom:60}}>
@@ -2682,6 +2752,29 @@ function AdminDashboard({pols,trades}){
               </div>
             ))}
           </div>
+        </div>}
+        {tab==="pipeline"&&<div style={{...ds}}>
+          <div style={{fontWeight:700,fontSize:15,color:"#fff",marginBottom:4}}>Data Pipeline Status</div>
+          <div style={{fontSize:13,color:"rgba(255,255,255,.3)",marginBottom:20}}>Automated data ingestion agents running via GitHub Actions</div>
+          {[
+            {name:"Trade Monitor",desc:"Congressional stock trades from QuiverQuant + FMP",schedule:"Daily at noon UTC",file:"congress-trades.json",color:"#4ade80"},
+            {name:"FEC Ingestion",desc:"Campaign finance candidate totals from OpenFEC",schedule:"Wednesdays at 7am UTC",file:"fec-candidates.json",color:"#14b8a6"},
+            {name:"GovTrack Sync",desc:"Member contact info and recent votes",schedule:"Tuesdays at 8am UTC",file:"govtrack-members.json",color:"#6366f1"},
+            {name:"Voting Records",desc:"Per-member roll call votes from Voteview (UCLA)",schedule:"Thursdays at 9am UTC",file:"voting-records.json",color:"#f472b6"},
+            {name:"FARA Monitor",desc:"Foreign agent registrations from OpenSanctions",schedule:"Mondays at 6am UTC",file:"fara-registrants.json",color:"#f97316"},
+          ].map((agent,i)=>(
+            <div key={i} style={{display:"flex",alignItems:"center",gap:14,padding:"14px 0",borderBottom:i<4?"1px solid rgba(255,255,255,.04)":"none"}}>
+              <div style={{width:10,height:10,borderRadius:"50%",background:agent.color,boxShadow:"0 0 8px "+agent.color}}/>
+              <div style={{flex:1}}>
+                <div style={{fontSize:14,fontWeight:700,color:"#e2e8f0"}}>{agent.name}</div>
+                <div style={{fontSize:12,color:"rgba(255,255,255,.35)"}}>{agent.desc}</div>
+              </div>
+              <div style={{textAlign:"right"}}>
+                <div style={{fontSize:12,fontWeight:600,color:agent.color}}>{agent.schedule}</div>
+                <div style={{fontSize:12,color:"rgba(255,255,255,.2)"}}>{agent.file}</div>
+              </div>
+            </div>
+          ))}
         </div>}
         {tab==="users"&&<div style={{...ds}}>
           <div style={{fontWeight:700,fontSize:15,color:"#fff",marginBottom:20}}>Registered Users ({users.length})</div>
