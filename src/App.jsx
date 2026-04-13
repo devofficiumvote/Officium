@@ -445,6 +445,7 @@ async function loadMembers(onUp){
     console.log(`Congress API: ${members.length} total — ${senateCount} senators, ${houseCount} representatives`);
     const fd=await FEC_P.catch(()=>({byLast:{},byFull:{}}));
     const gt=await GOVTRACK_MEMBERS.catch(()=>({}));
+    const vv=await VOTEVIEW_P.catch(()=>({}));
     const initial=members.map((m,i)=>{const raw=m.name||"";const name=(NICK[raw]||raw).split(",").reverse().map(s=>s.trim()).join(" ");const ch2=detectChamber(m);const party=(m.partyName||"").includes("Republican")?"R":(m.partyName||"").includes("Democrat")?"D":"I";const st=toAbbr(m.state);/* Try manual FEC ID first, then fuzzy lookup, then stripped-accent lookup */
 const manualId=MANUAL_FEC[name]||MANUAL_FEC[raw];
 let fr=null;
@@ -455,7 +456,8 @@ if(manualId){/* Look up manual ID in the FEC data by candidate_id */
 if(!fr)fr=lookupFEC(name,st,fd);
 if(!fr)fr=lookupFEC(stripAccents(name),st,fd);
 const gtInfo=gt[m.bioguideId]||{};
-return{id:"a"+i,name,party,chamber:ch2,state:st,yearsInOffice:m.terms&&m.terms.item&&m.terms.item[0]?(2026-(m.terms.item[0].startYear||2026)):0,bioguideId:m.bioguideId||null,photo:fixPhotoUrl(m),initials:name.split(" ").map(x=>x[0]).filter(Boolean).join("").slice(0,2).toUpperCase(),raised:(fr&&fr.receipts)||0,spent:(fr&&fr.disbursements)||0,cash:(fr&&fr.cash_on_hand_end_period)||0,debts:(fr&&fr.debts_owed_by_committee)||0,individualContrib:(fr&&fr.individual_itemized_contributions)||0,pacContrib:(fr&&fr.other_political_committee_contributions)||0,incumbentStatus:(fr&&fr.incumbent_challenge_full)||"",transfers:(fr&&fr.transfers_from_other_authorized_committee)||0,fecCycles:(fr&&fr.cycles)||[],firstFiled:(fr&&fr.first_file_date)||null,lastFiled:(fr&&fr.last_file_date)||null,coverageStart:(fr&&fr.coverage_start_date)||null,coverageEnd:(fr&&fr.coverage_end_date)||null,hasRealFinancials:!!fr,fecId:(fr&&fr.candidate_id)||null,fecUrl:fr&&fr.candidate_id?"https://www.fec.gov/data/candidate/"+fr.candidate_id+"/":"",congressUrl:"https://www.congress.gov/member/"+name.toLowerCase().replace(/[^a-z\s]/g,"").trim().replace(/\s+/g,"-")+"/"+(m.bioguideId||""),phone:gtInfo.phone||null,website:gtInfo.website||null,office:gtInfo.office||null,contactForm:gtInfo.contactForm||null,twitter:gtInfo.twitter||null,gender:gtInfo.gender||null,senatorRank:gtInfo.senatorRank||null,leadership:gtInfo.leadership||null,govtrackDesc:gtInfo.description||""};}).filter(p=>p.name.length>2);
+const vvInfo=vv[m.bioguideId]||{};
+return{id:"a"+i,name,party,chamber:ch2,state:st,yearsInOffice:m.terms&&m.terms.item&&m.terms.item[0]?(2026-(m.terms.item[0].startYear||2026)):0,bioguideId:m.bioguideId||null,photo:fixPhotoUrl(m),initials:name.split(" ").map(x=>x[0]).filter(Boolean).join("").slice(0,2).toUpperCase(),raised:(fr&&fr.receipts)||0,spent:(fr&&fr.disbursements)||0,cash:(fr&&fr.cash_on_hand_end_period)||0,debts:(fr&&fr.debts_owed_by_committee)||0,individualContrib:(fr&&fr.individual_itemized_contributions)||0,pacContrib:(fr&&fr.other_political_committee_contributions)||0,incumbentStatus:(fr&&fr.incumbent_challenge_full)||"",transfers:(fr&&fr.transfers_from_other_authorized_committee)||0,fecCycles:(fr&&fr.cycles)||[],firstFiled:(fr&&fr.first_file_date)||null,lastFiled:(fr&&fr.last_file_date)||null,coverageStart:(fr&&fr.coverage_start_date)||null,coverageEnd:(fr&&fr.coverage_end_date)||null,hasRealFinancials:!!fr,fecId:(fr&&fr.candidate_id)||null,fecUrl:fr&&fr.candidate_id?"https://www.fec.gov/data/candidate/"+fr.candidate_id+"/":"",congressUrl:"https://www.congress.gov/member/"+name.toLowerCase().replace(/[^a-z\s]/g,"").trim().replace(/\s+/g,"-")+"/"+(m.bioguideId||""),phone:gtInfo.phone||null,website:gtInfo.website||null,office:gtInfo.office||null,contactForm:gtInfo.contactForm||null,twitter:gtInfo.twitter||null,gender:gtInfo.gender||null,senatorRank:gtInfo.senatorRank||null,leadership:gtInfo.leadership||null,govtrackDesc:gtInfo.description||"",ideology:vvInfo.info?.nominate1||null,totalVotes:vvInfo.totalVotes||0,yeaPct:vvInfo.yeaPct||0,absentCount:vvInfo.absentCount||0};}).filter(p=>p.name.length>2);
     const matched=initial.filter(p=>p.hasRealFinancials).length;
     console.log(`FEC initial match: ${matched}/${initial.length}`);
     /* Second pass: individually fetch unmatched members via FEC candidate search */
@@ -1128,6 +1130,32 @@ function DataInsights({pols,trades}){
     // 24. Debt-to-cash ratio — who's underwater
     const underwater=withFEC.filter(p=>p.debts>p.cash&&p.debts>50000).sort((a,b)=>b.debts-a.debts);
     if(underwater.length)results.push({title:"Underwater Campaigns",value:underwater.length+"",desc:`${underwater.length} members have more debt than cash. ${underwater[0].name} owes ${fmt(underwater[0].debts)} with only ${fmt(underwater[0].cash)} on hand`,color:"#ef4444",icon:"\uD83D\uDEA8",pol:underwater[0]});
+    // 25. Ideology vs PAC funding
+    const withIdeology=withFEC.filter(p=>p.ideology!=null&&p.ideology!==0&&p.raised>1e6);
+    if(withIdeology.length>20){
+      const extreme=withIdeology.filter(p=>Math.abs(p.ideology)>0.5);
+      const moderate=withIdeology.filter(p=>Math.abs(p.ideology)<=0.3);
+      const extremeAvg=extreme.reduce((a,p)=>a+p.raised,0)/(extreme.length||1);
+      const moderateAvg=moderate.reduce((a,p)=>a+p.raised,0)/(moderate.length||1);
+      results.push({title:"Ideology & Money",value:extremeAvg>moderateAvg?"Extremes raise more":"Moderates raise more",desc:`Ideological extremes avg ${fmt(extremeAvg)} vs moderates avg ${fmt(moderateAvg)}. ${extreme.length} extreme, ${moderate.length} moderate members.`,color:"#c084fc",icon:"\uD83C\uDFAF"});
+    }
+    // 26. Trading vs Voting attendance
+    const tradersWithVotes=withFEC.filter(p=>p.totalVotes>0);
+    const activeTraders=tradersWithVotes.filter(p=>{const tc=(trades||[]).filter(t=>{const ln=(t.name||"").toLowerCase().split(/\s+/).pop();return ln.length>=3&&p.name.toLowerCase().endsWith(ln);}).length;return tc>5;});
+    const nonTraders=tradersWithVotes.filter(p=>{const tc=(trades||[]).filter(t=>{const ln=(t.name||"").toLowerCase().split(/\s+/).pop();return ln.length>=3&&p.name.toLowerCase().endsWith(ln);}).length;return tc===0;});
+    if(activeTraders.length>3&&nonTraders.length>10){
+      const traderAbsent=activeTraders.reduce((a,p)=>a+p.absentCount,0)/activeTraders.length;
+      const nonAbsent=nonTraders.reduce((a,p)=>a+p.absentCount,0)/nonTraders.length;
+      results.push({title:"Traders vs Attendance",value:traderAbsent>nonAbsent?"Traders miss more":"Traders miss fewer",desc:`Active traders miss avg ${Math.round(traderAbsent)} votes vs non-traders ${Math.round(nonAbsent)} missed. ${activeTraders.length} active traders analyzed.`,color:"#fb923c",icon:"\uD83D\uDCCB"});
+    }
+    // 27. Gender ideology gap
+    const femalesI=withFEC.filter(p=>p.gender==="Female"&&p.ideology!=null);
+    const malesI=withFEC.filter(p=>p.gender==="Male"&&p.ideology!=null);
+    if(femalesI.length>10&&malesI.length>10){
+      const fAvgI=femalesI.reduce((a,p)=>a+p.ideology,0)/femalesI.length;
+      const mAvgI=malesI.reduce((a,p)=>a+p.ideology,0)/malesI.length;
+      results.push({title:"Gender & Ideology",value:`${fAvgI<mAvgI?"Women more liberal":"Men more liberal"}`,desc:`Women avg ideology: ${fAvgI.toFixed(2)} vs Men: ${mAvgI.toFixed(2)} (range: -1 liberal to +1 conservative)`,color:"#f472b6",icon:"\u26A4"});
+    }
     return results;
   },[pols,trades]);
   if(!insights.length)return null;
@@ -2687,7 +2715,7 @@ function BrowsePage({pols,trades,onSelect,user,onSetUser}){
           <p style={{fontSize:13,color:"rgba(255,255,255,.3)",margin:"0 0 16px"}}>Search and filter every member of Congress. See their campaign finances, stock trades, and voting record.</p>
           {(()=>{const totalRaised=pols.reduce((s,p)=>s+p.raised,0);const avgPer=pols.length>0?totalRaised/pols.length:0;const highRisk=pols.reduce((best,p)=>{const pT=(trades||[]).filter(t=>(t.name||"").toLowerCase().includes(p.name.toLowerCase().split(/\s+/).pop()));const r=calcRisk(pT,p.raised);return r>(best.r||0)?{name:p.name,r}:best;},{name:"--",r:0});const mostTrades=Object.entries(tradeMap).sort((a,b)=>(b[1].count||0)-(a[1].count||0))[0];const mtPol=mostTrades?pols.find(p=>p.id===mostTrades[0]):null;return(
             <div style={{display:"grid",gridTemplateColumns:m?"1fr 1fr":"repeat(3,1fr)",gap:10,marginBottom:18}}>
-              {[["Total Raised",pols.some(p=>p.raised>0)?fmt(totalRaised):"Loading...","#10b981"],["Avg / Member",pols.some(p=>p.raised>0)?fmt(avgPer):"Loading...","#3b82f6"],["Highest Risk",highRisk.name.split(" ").pop()+" ("+highRisk.r+")","#ef4444"],["Most Trades",(mtPol?mtPol.name.split(" ").pop():"--")+" ("+(mostTrades?mostTrades[1].count:0)+")","#a78bfa"],["PAC Funded",pols.some(p=>p.pacContrib>0)?fmt(pols.filter(p=>p.pacContrib>0).reduce((a,p)=>a+p.pacContrib,0)):"Loading...","#f59e0b"],["Total Debt",pols.some(p=>p.debts>0)?fmt(pols.reduce((a,p)=>a+p.debts,0)):"Loading...","#f97316"],["Women",pols.filter(p=>p.gender==="Female").length||"—","#fb7185"],["Avg Tenure",pols.filter(p=>p.yearsInOffice>0).length>0?Math.round(pols.filter(p=>p.yearsInOffice>0).reduce((a,p)=>a+p.yearsInOffice,0)/pols.filter(p=>p.yearsInOffice>0).length)+"yr":"—","#a78bfa"]].map(([l,v,c])=>(
+              {[["Total Raised",pols.some(p=>p.raised>0)?fmt(totalRaised):"Loading...","#10b981"],["Avg / Member",pols.some(p=>p.raised>0)?fmt(avgPer):"Loading...","#3b82f6"],["Highest Risk",highRisk.name.split(" ").pop()+" ("+highRisk.r+")","#ef4444"],["Most Trades",(mtPol?mtPol.name.split(" ").pop():"--")+" ("+(mostTrades?mostTrades[1].count:0)+")","#a78bfa"],["PAC Funded",pols.some(p=>p.pacContrib>0)?fmt(pols.filter(p=>p.pacContrib>0).reduce((a,p)=>a+p.pacContrib,0)):"Loading...","#f59e0b"],["Total Debt",pols.some(p=>p.debts>0)?fmt(pols.reduce((a,p)=>a+p.debts,0)):"Loading...","#f97316"],["Women",pols.filter(p=>p.gender==="Female").length||"—","#fb7185"],["Avg Tenure",pols.filter(p=>p.yearsInOffice>0).length>0?Math.round(pols.filter(p=>p.yearsInOffice>0).reduce((a,p)=>a+p.yearsInOffice,0)/pols.filter(p=>p.yearsInOffice>0).length)+"yr":"—","#a78bfa"],["Avg Yea%",pols.filter(p=>p.yeaPct>0).length>0?Math.round(pols.filter(p=>p.yeaPct>0).reduce((a,p)=>a+p.yeaPct,0)/pols.filter(p=>p.yeaPct>0).length)+"%":"—","#6366f1"]].map(([l,v,c])=>(
                 <div key={l} style={{background:c+"0a",border:"1px solid "+c+"22",borderRadius:10,padding:"10px 14px"}}>
                   <div style={{fontSize:12,color:"rgba(255,255,255,.25)",textTransform:"uppercase",letterSpacing:.5,marginBottom:3}}>{l}</div>
                   <div style={{fontSize:12,fontWeight:800,color:c,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{v}</div>
@@ -2731,6 +2759,7 @@ function BrowsePage({pols,trades,onSelect,user,onSetUser}){
                 <div style={{background:"rgba(255,255,255,.03)",borderRadius:8,padding:"8px 10px"}}><div style={{fontSize:12,color:"rgba(255,255,255,.2)",textTransform:"uppercase",letterSpacing:.5,marginBottom:3}}>Cash</div><div style={{fontSize:12,fontWeight:700,color:p.cash>0?"#3b82f6":"rgba(255,255,255,.12)"}}>{p.cash>0?fmt(p.cash):<span style={{fontSize:12,color:"rgba(255,255,255,.15)",fontStyle:"italic"}}>No FEC</span>}</div></div>
                 <div style={{background:td.violations>0?"rgba(239,68,68,.06)":"rgba(255,255,255,.03)",borderRadius:8,padding:"8px 10px"}}><div style={{fontSize:12,color:"rgba(255,255,255,.2)",textTransform:"uppercase",letterSpacing:.5,marginBottom:3}}>Trades</div><div style={{fontSize:12,fontWeight:700,color:td.count>0?"#a78bfa":"rgba(255,255,255,.12)"}}>{td.count>0?td.count:<span style={{fontSize:12,color:"rgba(255,255,255,.15)",fontStyle:"italic"}}>--</span>}{td.violations>0&&<span style={{color:"#ef4444",marginLeft:4,fontSize:10}}>⚠ {td.violations}</span>}</div></div>
                 <div style={{background:risk>60?"rgba(239,68,68,.06)":risk>30?"rgba(245,158,11,.06)":"rgba(255,255,255,.03)",borderRadius:8,padding:"8px 10px"}}><div style={{fontSize:12,color:"rgba(255,255,255,.2)",textTransform:"uppercase",letterSpacing:.5,marginBottom:3}}>Risk</div><div style={{fontSize:12,fontWeight:700,color:riskColor(risk)}}>{risk}/100</div></div>
+                {p.ideology!=null&&<div style={{background:"rgba(255,255,255,.03)",borderRadius:8,padding:"8px 10px"}}><div style={{fontSize:12,color:"rgba(255,255,255,.2)",textTransform:"uppercase",letterSpacing:.5,marginBottom:3}}>Ideology</div><div style={{fontSize:12,fontWeight:700,color:p.ideology<-0.3?"#3b82f6":p.ideology>0.3?"#ef4444":"#94a3b8"}}>{p.ideology<-0.3?"Liberal":p.ideology>0.3?"Conservative":"Moderate"}</div></div>}
               </div>);})()}
               <div style={{paddingTop:10,borderTop:"1px solid rgba(255,255,255,.04)",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                 <span style={{fontSize:12,color:"#a78bfa",fontWeight:700}}>View profile →</span>

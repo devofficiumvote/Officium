@@ -16,13 +16,26 @@ const DATA_DIR = join(__dirname, "..", "public", "data");
 
 function parseCSV(text) {
   const lines = text.split("\n").filter(l => l.trim());
-  const headers = lines[0].split(",").map(h => h.trim());
+  const headers = parseCSVLine(lines[0]);
   return lines.slice(1).map(line => {
-    const vals = line.split(",");
+    const vals = parseCSVLine(line);
     const obj = {};
     headers.forEach((h, i) => obj[h] = (vals[i] || "").trim());
     return obj;
   });
+}
+
+function parseCSVLine(line) {
+  const result = [];
+  let current = "";
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    if (line[i] === '"') { inQuotes = !inQuotes; continue; }
+    if (line[i] === "," && !inQuotes) { result.push(current.trim()); current = ""; continue; }
+    current += line[i];
+  }
+  result.push(current.trim());
+  return result;
 }
 
 async function main() {
