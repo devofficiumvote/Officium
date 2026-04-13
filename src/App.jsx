@@ -3129,7 +3129,7 @@ function ForeignInfluenceMap(){
 
 /* ── BIG TRADES HIGHLIGHT ────────────── */
 function BigTrades({trades,pols}){
-  const big=useMemo(()=>(trades||[]).filter(t=>/1,000,000|5,000,001|50,000,001/.test(t.amount||"")&&t.ticker&&t.ticker!=="N/A").slice(0,12),[trades]);
+  const big=useMemo(()=>(trades||[]).filter(t=>/1,000,000|5,000,001|50,000,001/.test(t.amount||"")&&t.ticker&&t.ticker!=="N/A"&&findPolForTrade(t,pols||[])).slice(0,12),[trades,pols]);
   if(!big.length)return null;
   return(
     <div style={{background:"linear-gradient(180deg,#1a0520,#09090b)",padding:"60px 0"}}>
@@ -3327,7 +3327,7 @@ function HomeTabs({trades,pols,onSelect}){
   const[tab,setTab]=useState("feed");const m=mob();
   const[htParty,setHTParty]=useState("All");const[htChamber,setHTChamber]=useState("All");
   const filteredTrades=useMemo(()=>{
-    let t=trades||[];
+    let t=(trades||[]).filter(tr=>findPolForTrade(tr,pols||[]));
     if(htParty!=="All"){const partyPols=(pols||[]).filter(p=>p.party===htParty).map(p=>p.name.toLowerCase().split(" ").pop());t=t.filter(tr=>partyPols.some(ln=>tr.name.toLowerCase().includes(ln)));}
     return t;
   },[trades,htParty,pols]);
@@ -3501,7 +3501,7 @@ function TradesPage({trades,pols,onSelect}){
   const[votes,setVotes]=useState([]);
   useEffect(()=>{GOVTRACK_VOTES.then(setVotes).catch(()=>{});},[]);
   const filtered=useMemo(()=>{
-    let f=trades||[];
+    let f=(trades||[]).filter(t=>findPolForTrade(t,pols||[]));
     if(q)f=f.filter(t=>(t.name||"").toLowerCase().includes(q.toLowerCase())||(t.ticker||"").toLowerCase().includes(q.toLowerCase()));
     if(filterAction!=="All")f=f.filter(t=>t.action===filterAction);
     if(sortBy==="date")f=[...f].sort((a,b)=>(b.tradeDate||"").localeCompare(a.tradeDate||""));
@@ -3550,9 +3550,10 @@ function TradesPage({trades,pols,onSelect}){
 
 /* ── VIOLATIONS PAGE ───────────────────── */
 function ViolationsPage({trades,pols,onSelect}){
-  const violations=useMemo(()=>(trades||[]).filter(t=>t.gap>45).sort((a,b)=>b.gap-a.gap),[trades]);
-  const late=useMemo(()=>(trades||[]).filter(t=>t.gap>30&&t.gap<=45).sort((a,b)=>b.gap-a.gap),[trades]);
-  const highValue=useMemo(()=>(trades||[]).filter(t=>/500,000|1,000,000|5,000,001/.test(t.amount||"")),[trades]);
+  const active=useMemo(()=>(trades||[]).filter(t=>findPolForTrade(t,pols||[])),[trades,pols]);
+  const violations=useMemo(()=>active.filter(t=>t.gap>45).sort((a,b)=>b.gap-a.gap),[active]);
+  const late=useMemo(()=>active.filter(t=>t.gap>30&&t.gap<=45).sort((a,b)=>b.gap-a.gap),[active]);
+  const highValue=useMemo(()=>active.filter(t=>/500,000|1,000,000|5,000,001/.test(t.amount||"")),[active]);
   const m=mob();
   return(
     <div style={{background:"#09090b",minHeight:"100vh",paddingBottom:60}}>
