@@ -1650,6 +1650,7 @@ function ProfilePage({pol,pols,allTrades,onSelect,onBack,user,onSetUser}){
                 {violations>0&&<span style={{fontSize:12,fontWeight:800,padding:"2px 9px",borderRadius:4,background:"rgba(239,68,68,.15)",color:"#f87171",border:"1px solid rgba(239,68,68,.3)"}}>🚨 {violations} VIOLATION{violations>1?"S":""}</span>}
                 {isWatched&&<span style={{fontSize:12,color:"#34d399",padding:"2px 9px",background:"rgba(16,185,129,.1)",borderRadius:4}}>✓ Watching</span>}
                 {candDetail&&candDetail.candidate_status&&<span style={{fontSize:12,color:"#a78bfa",padding:"2px 9px",background:"rgba(168,85,247,.1)",borderRadius:4}}>{candDetail.candidate_status==="C"?"✓ Certified":"Candidate"}</span>}
+                <button onClick={()=>{navigator.clipboard.writeText(`Check out ${pol.name}'s record on Officium: officium.vote`).then(()=>alert("Link copied!"));}} style={{padding:"6px 14px",borderRadius:8,border:"1px solid rgba(255,255,255,.1)",background:"rgba(255,255,255,.04)",color:"rgba(255,255,255,.4)",fontSize:12,fontWeight:600,cursor:"pointer"}}>Share</button>
               </div>
               <div style={{fontSize:12,color:"rgba(255,255,255,.3)",marginBottom:14}}>{pol.chamber} · {pol.state}{fecId&&" | FEC: "+fecId}{candDetail&&candDetail.incumbent_challenge_full&&" | "+candDetail.incumbent_challenge_full}</div>
               <div style={{display:"grid",gridTemplateColumns:m?"1fr 1fr":"repeat(5,1fr)",gap:8,marginBottom:12}}>
@@ -2925,7 +2926,7 @@ function Nav({page,onNav,user,onLogout,pols,violations,onSelect}){
           </div>}
           <div style={{flex:1}}/>
           {!m&&<div style={{display:"flex",gap:2,alignItems:"center"}}>
-            {[["home","Home"],["browse","Officials"],["trades","Trades"],["violations","Violations"],["explorer","Explorer"],["about","About"],user&&["dashboard","Dashboard"],user&&user.role==="admin"&&["admin","Admin"]].filter(Boolean).map(([p,l])=>(
+            {[["home","Home"],["browse","Officials"],["trades","Trades"],["violations","Violations"],["explorer","Explorer"],["about","About"],["api","API"],["pricing","Pricing"],user&&["dashboard","Dashboard"],user&&user.role==="admin"&&["admin","Admin"]].filter(Boolean).map(([p,l])=>(
               <button key={p} onClick={()=>onNav(p)} style={{padding:"6px 12px",borderRadius:8,border:"none",background:page===p?"rgba(168,85,247,.15)":"transparent",color:page===p?"#a78bfa":"rgba(255,255,255,.35)",fontWeight:600,fontSize:12,cursor:"pointer"}}>{l}</button>
             ))}
             {violations>0&&<span style={{fontSize:12,background:"rgba(239,68,68,.1)",color:"#fca5a5",border:"1px solid rgba(239,68,68,.25)",padding:"3px 9px",borderRadius:100,fontWeight:700,animation:"pulseDot 2s infinite",marginLeft:4}}>🚨 {violations}</span>}
@@ -2937,7 +2938,7 @@ function Nav({page,onNav,user,onLogout,pols,violations,onSelect}){
           {m&&<button onClick={()=>setOpen(!open)} style={{background:"none",border:"1px solid rgba(168,85,247,.2)",borderRadius:8,color:"#a78bfa",padding:"6px 10px",fontSize:12,cursor:"pointer"}}>{open?"✕":"☰"}</button>}
         </div>
         {m&&open&&<div style={{marginTop:12,paddingTop:12,borderTop:"1px solid rgba(168,85,247,.1)",display:"flex",flexDirection:"column",gap:3}}>
-          {[["home","Home"],["browse","Officials"],["trades","Trades"],["violations","Violations"],["explorer","Explorer"],["about","About"],user&&["dashboard","Dashboard"],user&&user.role==="admin"&&["admin","Admin"]].filter(Boolean).map(([p,l])=>(
+          {[["home","Home"],["browse","Officials"],["trades","Trades"],["violations","Violations"],["explorer","Explorer"],["about","About"],["api","API"],["pricing","Pricing"],user&&["dashboard","Dashboard"],user&&user.role==="admin"&&["admin","Admin"]].filter(Boolean).map(([p,l])=>(
             <button key={p} onClick={()=>{onNav(p);setOpen(false);}} style={{padding:"10px 12px",borderRadius:8,border:"none",background:page===p?"rgba(168,85,247,.12)":"transparent",color:page===p?"#a78bfa":"rgba(255,255,255,.4)",fontWeight:600,fontSize:13,cursor:"pointer",textAlign:"left"}}>{l}</button>
           ))}
           {user?<button onClick={()=>{onLogout();setOpen(false);}} style={{padding:"10px 12px",borderRadius:8,border:"none",background:"transparent",color:"rgba(255,255,255,.3)",fontSize:13,cursor:"pointer",textAlign:"left"}}>Sign out</button>:<button onClick={()=>{onNav("auth");setOpen(false);}} style={{padding:"10px 12px",borderRadius:8,border:"1px solid rgba(168,85,247,.2)",background:"rgba(168,85,247,.08)",color:"#a78bfa",fontSize:13,cursor:"pointer",textAlign:"left",fontWeight:700}}>Sign In / Create Account</button>}
@@ -3367,6 +3368,14 @@ function HomePage({pols,trades,onBrowse,onSelect,onLogin,user}){
               </div>
             </div>
           </div>
+          <div style={{maxWidth:400,margin:"0 auto 20px",textAlign:"center"}}>
+            <div style={{fontSize:14,fontWeight:700,color:"#e2e8f0",marginBottom:8}}>Stay Informed</div>
+            <div style={{display:"flex",gap:8}}>
+              <input placeholder="your@email.com" style={{flex:1,padding:"10px 14px",borderRadius:10,border:"1px solid rgba(255,255,255,.1)",background:"rgba(255,255,255,.04)",color:"#fff",fontSize:13,outline:"none"}}/>
+              <button style={{padding:"10px 18px",borderRadius:10,background:"linear-gradient(135deg,#0891b2,#14b8a6)",color:"#fff",fontSize:13,fontWeight:700,border:"none",cursor:"pointer",whiteSpace:"nowrap"}}>Subscribe</button>
+            </div>
+            <div style={{fontSize:12,color:"rgba(255,255,255,.15)",marginTop:6}}>Weekly digest of top trades and violations. No spam.</div>
+          </div>
           <div style={{borderTop:"1px solid rgba(255,255,255,.04)",paddingTop:16,display:"flex",justifyContent:"center"}}>
             <span style={{fontSize:12,color:"rgba(255,255,255,.1)"}}>{pols.length>=500?pols.length:538} officials tracked · All data from public government APIs</span>
           </div>
@@ -3465,6 +3474,111 @@ function ViolationsPage({trades,pols,onSelect}){
             </div>
           );})}
         </div>}
+      </CW>
+    </div>
+  );
+}
+
+/* ── API DOCS PAGE ─────────────────────── */
+function ApiDocsPage(){
+  const m=mob();
+  const endpoints=[
+    {path:"/data/congress-trades.json",desc:"5,040 congressional stock trades (2018-2026) from Senate and House",fields:"name, bioguideId, ticker, action, amount, tradeDate, filedDate, chamber, party, excessReturn, gap, source",refresh:"Daily",size:"~1.5MB"},
+    {path:"/data/fec-candidates.json",desc:"3,327 FEC candidate records with campaign finance totals",fields:"receipts, disbursements, cash_on_hand, individual_contributions, PAC_contributions, debts, candidate_id, name, state, party, cycles",refresh:"Weekly",size:"~11MB"},
+    {path:"/data/govtrack-members.json",desc:"539 current Congress members with contact info",fields:"bioguideId, name, party, state, phone, website, office, contactForm, twitter, birthday, gender, leadership",refresh:"Weekly",size:"~300KB"},
+    {path:"/data/govtrack-votes.json",desc:"100 recent congressional votes from GovTrack",fields:"number, question, result, created, chamber, total_plus, total_minus, category_label",refresh:"Weekly",size:"~50KB"},
+    {path:"/data/voting-records.json",desc:"244,446 per-member voting records with ideology scores",fields:"bioguideId, totalVotes, yeaCount, nayCount, absentCount, yeaPct, nominate_dim1 (ideology), per-vote: rollNumber, vote, date, billNumber, result",refresh:"Weekly",size:"~10MB"},
+    {path:"/data/fara-registrants.json",desc:"15,106 FARA foreign agent registrants",fields:"name, country, address, status, registrationNumber",refresh:"Weekly",size:"~2.7MB"},
+    {path:"/data/fara-principals.json",desc:"22,147 FARA foreign principals",fields:"name, country, topics",refresh:"Weekly",size:"~4.2MB"},
+  ];
+  return(
+    <div style={{background:"#09090b",minHeight:"100vh",paddingBottom:60}}>
+      <div style={{background:"linear-gradient(135deg,#18181b,#27272a)",borderBottom:"1px solid rgba(6,182,212,.12)",padding:"40px 0"}}>
+        <CW>
+          <h1 style={{fontSize:m?28:36,fontWeight:900,color:"#fff",margin:"0 0 12px",letterSpacing:-1}}>Public Data API</h1>
+          <p style={{fontSize:16,color:"rgba(255,255,255,.5)",lineHeight:1.7,maxWidth:700}}>All Officium data is available as static JSON endpoints. No API key required. Free for non-commercial use.</p>
+          <div style={{display:"inline-flex",alignItems:"center",gap:8,background:"rgba(6,182,212,.1)",border:"1px solid rgba(6,182,212,.25)",borderRadius:100,padding:"8px 18px",marginTop:16}}>
+            <div style={{width:8,height:8,borderRadius:"50%",background:"#14b8a6"}}/>
+            <span style={{fontSize:13,fontWeight:600,color:"#14b8a6"}}>All endpoints live · Updated by GitHub Actions</span>
+          </div>
+        </CW>
+      </div>
+      <CW pad="32px 28px">
+        <div style={{maxWidth:900}}>
+          <div style={{fontSize:14,color:"rgba(255,255,255,.4)",marginBottom:28,lineHeight:1.7}}>
+            <strong style={{color:"#e2e8f0"}}>Base URL:</strong> <code style={{background:"rgba(255,255,255,.06)",padding:"2px 8px",borderRadius:4,color:"#67e8f9"}}>https://officium.vote</code> (or your Netlify deployment URL)<br/>
+            <strong style={{color:"#e2e8f0"}}>Format:</strong> JSON<br/>
+            <strong style={{color:"#e2e8f0"}}>Authentication:</strong> None required<br/>
+            <strong style={{color:"#e2e8f0"}}>Rate limit:</strong> None (static files served by CDN)<br/>
+            <strong style={{color:"#e2e8f0"}}>License:</strong> Free for non-commercial use. Attribution required.
+          </div>
+          {endpoints.map((ep,i)=>(
+            <div key={i} style={{background:"rgba(6,182,212,.03)",border:"1px solid rgba(6,182,212,.1)",borderRadius:14,padding:22,marginBottom:16}}>
+              <div style={{display:"flex",alignItems:"center",gap:12,flexWrap:"wrap",marginBottom:10}}>
+                <code style={{fontSize:15,fontWeight:700,color:"#67e8f9",background:"rgba(6,182,212,.1)",padding:"4px 12px",borderRadius:6}}>GET {ep.path}</code>
+                <span style={{fontSize:12,background:"rgba(20,184,166,.1)",color:"#14b8a6",padding:"3px 10px",borderRadius:100,fontWeight:600}}>{ep.refresh}</span>
+                <span style={{fontSize:12,color:"rgba(255,255,255,.25)"}}>{ep.size}</span>
+              </div>
+              <div style={{fontSize:14,color:"rgba(255,255,255,.5)",marginBottom:10}}>{ep.desc}</div>
+              <div style={{fontSize:12,color:"rgba(255,255,255,.3)"}}>
+                <strong style={{color:"rgba(255,255,255,.5)"}}>Fields:</strong> {ep.fields}
+              </div>
+            </div>
+          ))}
+          <div style={{marginTop:32,padding:20,background:"rgba(255,255,255,.03)",borderRadius:12,border:"1px solid rgba(255,255,255,.06)"}}>
+            <div style={{fontSize:15,fontWeight:700,color:"#e2e8f0",marginBottom:8}}>Usage Example</div>
+            <pre style={{background:"rgba(0,0,0,.3)",borderRadius:8,padding:16,overflow:"auto",fontSize:13,color:"#67e8f9",lineHeight:1.6}}>{`fetch("https://officium.vote/data/congress-trades.json")
+  .then(r => r.json())
+  .then(data => {
+    console.log(data.count + " trades");
+    console.log(data.trades[0]); // Latest trade
+  });`}</pre>
+          </div>
+        </div>
+      </CW>
+    </div>
+  );
+}
+
+/* ── PRICING PAGE ──────────────────────── */
+function PricingPage(){
+  const m=mob();
+  const tiers=[
+    {name:"Free Public",price:"Free",period:"",features:["538 federal official profiles","Recent 20 votes per member","Campaign finance summaries","STOCK Act trade feed","Basic search and browse"],cta:"Get Started",highlight:false},
+    {name:"Reporter",price:"$120",period:"/month",features:["Everything in Free","Full federal data access","All MVP features","Trade alerts (10 officials)","CSV/PDF export","Priority support"],cta:"Coming Soon",highlight:true},
+    {name:"Newsroom",price:"$800",period:"/month",features:["Everything in Reporter","Up to 10 seats","State data (Phase 2)","Real-time alerts","Custom reports","Shared workspaces"],cta:"Coming Soon",highlight:false},
+    {name:"Enterprise",price:"Custom",period:"",features:["Everything in Newsroom","Unlimited seats","REST API access","Webhook integrations","SLA guarantee","Dedicated account manager"],cta:"Contact Us",highlight:false},
+  ];
+  return(
+    <div style={{background:"#09090b",minHeight:"100vh",paddingBottom:60}}>
+      <div style={{background:"linear-gradient(135deg,#18181b,#27272a)",borderBottom:"1px solid rgba(6,182,212,.12)",padding:"40px 0"}}>
+        <CW>
+          <div style={{textAlign:"center"}}>
+            <h1 style={{fontSize:m?28:36,fontWeight:900,color:"#fff",margin:"0 0 12px",letterSpacing:-1}}>Pricing</h1>
+            <p style={{fontSize:16,color:"rgba(255,255,255,.5)",maxWidth:600,margin:"0 auto"}}>Free for citizens. Premium tools for journalists and newsrooms. All prices are planning assumptions pending customer validation.</p>
+          </div>
+        </CW>
+      </div>
+      <CW pad="32px 28px">
+        <div style={{display:"grid",gridTemplateColumns:m?"1fr":"repeat(4,1fr)",gap:16,maxWidth:1100,margin:"0 auto"}}>
+          {tiers.map((t,i)=>(
+            <div key={i} style={{background:t.highlight?"rgba(6,182,212,.06)":"rgba(255,255,255,.02)",border:"1px solid "+(t.highlight?"rgba(6,182,212,.3)":"rgba(255,255,255,.06)"),borderRadius:16,padding:24,display:"flex",flexDirection:"column"}}>
+              {t.highlight&&<div style={{fontSize:12,fontWeight:700,color:"#14b8a6",textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>Most Popular</div>}
+              <div style={{fontSize:18,fontWeight:800,color:"#fff",marginBottom:4}}>{t.name}</div>
+              <div style={{marginBottom:16}}><span style={{fontSize:32,fontWeight:900,color:t.highlight?"#14b8a6":"#e2e8f0"}}>{t.price}</span><span style={{fontSize:14,color:"rgba(255,255,255,.3)"}}>{t.period}</span></div>
+              <div style={{flex:1}}>
+                {t.features.map((f,j)=>(
+                  <div key={j} style={{display:"flex",gap:8,alignItems:"flex-start",marginBottom:8}}>
+                    <span style={{color:"#14b8a6",fontSize:14,flexShrink:0}}>&#x2713;</span>
+                    <span style={{fontSize:13,color:"rgba(255,255,255,.5)"}}>{f}</span>
+                  </div>
+                ))}
+              </div>
+              <button style={{marginTop:16,padding:"12px 0",borderRadius:10,border:t.highlight?"none":"1px solid rgba(255,255,255,.1)",background:t.highlight?"linear-gradient(135deg,#0891b2,#14b8a6)":"transparent",color:t.highlight?"#fff":"rgba(255,255,255,.5)",fontSize:14,fontWeight:700,cursor:"pointer",width:"100%"}}>{t.cta}</button>
+            </div>
+          ))}
+        </div>
+        <div style={{textAlign:"center",marginTop:28,fontSize:13,color:"rgba(255,255,255,.2)"}}>All prices are planning assumptions per BRD &sect;32. Final pricing pending 10 customer discovery interviews.</div>
       </CW>
     </div>
   );
@@ -3689,6 +3803,8 @@ export default function App(){
         {page==="violations"&&<ViolationsPage trades={trades} pols={pols} onSelect={goSel}/>}
         {page==="explorer"&&<DonorExplorer pols={pols} onSelect={goSel}/>}
         {page==="about"&&<AboutPage/>}
+        {page==="api"&&<ApiDocsPage/>}
+        {page==="pricing"&&<PricingPage/>}
         {page==="profile"&&sel&&<ProfilePage pol={sel} pols={pols} allTrades={trades} onSelect={goSel} onBack={()=>nav("browse")} user={user} onSetUser={setUser}/>}
         {page==="dashboard"&&(user?<UserDashboard user={user} pols={pols} onSelect={goSel} onSetUser={setUser}/>:<AuthPage onAuth={onAuth}/>)}
         {page==="admin"&&(user&&user.role==="admin"?<AdminDashboard pols={pols} trades={trades}/>:<AuthPage onAuth={onAuth}/>)}
