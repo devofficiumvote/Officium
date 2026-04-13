@@ -11,7 +11,7 @@ const PX2="https://corsproxy.io/?url=";
 /* S3 buckets are dead (403) — GitHub raw for Senate, House data unavailable */
 /* House Stock Watcher removed — S3 bucket permanently offline (403) */
 const SENATE_S3="https://raw.githubusercontent.com/timothycarambat/senate-stock-watcher-data/master/aggregate/all_transactions.json";
-const SENATE_S3_FB="https://senate-stock-watcher-data.s3-us-west-2.amazonaws.com/aggregate/all_transactions.json";
+/* Senate S3 bucket permanently offline (403) — GitHub raw is primary source */
 const LDA_BASE="https://lda.gov/api/v1"; /* migrated from lda.senate.gov (sunsetting June 2026) */
 const LDA_BASE_FB="https://lda.senate.gov/api/v1";
 const USA_BASE="https://api.usaspending.gov/api/v2";
@@ -230,7 +230,7 @@ function computeAccountabilityScore(pol, trades) {
 /* House Stock Watcher S3 is permanently offline (403). No free alternative exists. */
 const HOUSE_P=Promise.resolve([]);
 const SENATE_P=withCache("senate_v9",async()=>{
-  for(const u of[SENATE_S3,SENATE_S3_FB,PXK+encodeURIComponent(SENATE_S3_FB)]){
+  for(const u of[SENATE_S3,PXK+encodeURIComponent(SENATE_S3)]){
     try{const r=await fetch(u,{signal:AbortSignal.timeout(30000)});if(!r.ok)continue;const d=await r.json();const a=Array.isArray(d)?d:(d.data||[]);if(!a.length)continue;
     /* Normalize dates to ISO format before filtering */
     const norm=a.map(t=>({...t,transaction_date:toISO(t.transaction_date),disclosure_date:toISO(t.disclosure_date)}));
@@ -377,7 +377,7 @@ const FEC_P=withCache("fec_v20",async()=>{
     if(r.ok){const d=await r.json();if(d.count>500){console.log(`FEC loaded ${d.count} candidates from static cache (${d.fetchedAt})`);return{count:d.count,byLast:d.byLast,byFull:d.byFull};}}
   }catch(e){}
   /* Fallback: fetch live from FEC API */
-  console.log("FEC static cache not available, fetching live...");
+  /* FEC static cache miss — fetching live */
   const all=[];const delay=ms=>new Promise(r=>setTimeout(r,ms));
   for(const cyc of["","&cycle=2024","&cycle=2022"]){
     for(let pg=1;pg<=5;pg++){
@@ -754,7 +754,7 @@ function FloatingCards({pols,trades,onSelect}){
 /* ── HERO HEADLINES (cycling) ──────────── */
 const HEADS=[
   {line1:"They voted on the CHIPS Act.",line2:"Three days earlier,",line3:"they bought NVDA stock.",sub:"We track every stock trade by every member of Congress. All public data. Updated daily."},
-  {line1:"535 members of Congress.",line2:"Every trade disclosed.",line3:"Every dollar tracked.",sub:"See who's raising money, trading stocks, and how they vote — all in one place."},
+  {line1:"538 members of Congress.",line2:"Every trade disclosed.",line3:"Every dollar tracked.",sub:"See who's raising money, trading stocks, and how they vote — all in one place."},
   {line1:"Your representatives work for you.",line2:"See where their",line3:"money comes from.",sub:"Campaign donations, lobbying, foreign agents — follow every dollar that flows into Congress."},
   {line1:"$2.3 billion raised this cycle.",line2:"Foreign governments lobbying.",line3:"PAC money flowing in.",sub:"Real data from the FEC, Congress.gov, Senate disclosures, and more."},
   {line1:"Transparency",line2:"isn't a privilege.",line3:"It's a right.",sub:"Officium — Latin for duty. Free, open-source congressional transparency for every citizen."},

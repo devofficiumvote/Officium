@@ -126,7 +126,9 @@
       "Bash(python3 -c \" import sys,json d=json.load\\(sys.stdin\\) m=d.get\\('member',{}\\) print\\(f'Name: {m.get\\(\\\\\"directOrderName\\\\\",\\\\\"?\\\\\"\\)}'\\) sp=m.get\\('sponsoredLegislation',{}\\) print\\(f'Sponsored: {json.dumps\\(sp\\)[:200]}'\\) cosp=m.get\\('cosponsoredLegislation',{}\\) print\\(f'Cosponsored: {json.dumps\\(cosp\\)[:200]}'\\) \" echo \"\")",
       "Bash(python3 -c \" import sys,json d=json.load\\(sys.stdin\\) print\\(f'Keys: {list\\(d.keys\\(\\)\\)}'\\) bills=d.get\\('sponsoredLegislation',[]\\) print\\(f'Bills: {len\\(bills\\)}'\\) if bills: print\\(json.dumps\\(bills[0]\\)[:200]\\) \")",
       "Bash(curl -s 'https://api.congress.gov/v3/member?limit=5&currentMember=true&format=json&api_key=YdbWI0KzqPkIvv9vcx3z6dQpaG6ARB8cSr7HOdWC')",
-      "Bash(python3 -c \" import sys,json d=json.load\\(sys.stdin\\) for m in d['members'][:5]: print\\(f'{m[\\\\\"name\\\\\"]} | district: {m.get\\(\\\\\"district\\\\\",\\\\\"NONE\\\\\"\\)} | state: {m.get\\(\\\\\"state\\\\\",\\\\\"?\\\\\"\\)} | chamber: {m.get\\(\\\\\"terms\\\\\",{}\\).get\\(\\\\\"item\\\\\",[{}]\\)[0].get\\(\\\\\"chamber\\\\\",\\\\\"?\\\\\"\\)}'\\) \")"
+      "Bash(python3 -c \" import sys,json d=json.load\\(sys.stdin\\) for m in d['members'][:5]: print\\(f'{m[\\\\\"name\\\\\"]} | district: {m.get\\(\\\\\"district\\\\\",\\\\\"NONE\\\\\"\\)} | state: {m.get\\(\\\\\"state\\\\\",\\\\\"?\\\\\"\\)} | chamber: {m.get\\(\\\\\"terms\\\\\",{}\\).get\\(\\\\\"item\\\\\",[{}]\\)[0].get\\(\\\\\"chamber\\\\\",\\\\\"?\\\\\"\\)}'\\) \")",
+      "Bash(grep -v \"^$\")",
+      "Bash(grep -n \"return null;$\" /Users/ahsansiddiqui/Desktop/officium/src/App.jsx)"
     ]
   }
 }
