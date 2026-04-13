@@ -399,6 +399,7 @@ const FARA_PRINCIPALS=withCache("fara_pri_v3",async()=>{try{const r=await fetch(
 const USA_AGENCIES=withCache("usa_ag_v1",async()=>{try{const r=await fetch(USA_BASE+"/references/toptier_agencies/?limit=20",{signal:AbortSignal.timeout(12000)});if(!r.ok)throw new Error();const d=await r.json();return (d.results||[]).sort((a,b)=>(b.budget_authority_amount||0)-(a.budget_authority_amount||0));}catch(e){console.warn("USASpending:",e.message);return[];}});
 const GOVTRACK_MEMBERS=withCache("gt_mem_v1",async()=>{try{const r=await fetch("/data/govtrack-members.json",{signal:AbortSignal.timeout(5000)});if(!r.ok)return{};const d=await r.json();return d.members||{};}catch(e){return{};}});
 const GOVTRACK_VOTES=withCache("gt_votes_v1",async()=>{try{const r=await fetch("/data/govtrack-votes.json",{signal:AbortSignal.timeout(5000)});if(!r.ok)return[];const d=await r.json();return d.votes||[];}catch(e){return[];}});
+const VOTEVIEW_P=withCache("voteview_v1",async()=>{try{const r=await fetch("/data/voting-records.json",{signal:AbortSignal.timeout(8000)});if(!r.ok)return{};const d=await r.json();return d.memberVotes||{};}catch(e){return{};}});
 
 /* ── CONGRESS LOADER ──────────────────── */
 function fixPhotoUrl(m){
@@ -561,6 +562,7 @@ const API_CHECKS=[
   {id:"bills",label:"Bills",color:"#f59e0b",test:()=>RECENT_BILLS.then(d=>d&&d.hr&&d.hr.length>0).catch(()=>false)},
   {id:"fara",label:"FARA",color:"#f97316",test:()=>fetch("/data/fara-registrants.json",{signal:AbortSignal.timeout(5000)}).then(r=>r.ok).catch(()=>false)},
   {id:"govtrack",label:"GovTrack",color:"#14b8a6",test:()=>fetch("/data/govtrack-members.json",{signal:AbortSignal.timeout(5000)}).then(r=>r.ok).catch(()=>false)},
+  {id:"voteview",label:"Voting",color:"#f472b6",test:()=>fetch("/data/voting-records.json",{signal:AbortSignal.timeout(5000)}).then(r=>r.ok).catch(()=>false)},
 ];
 function ApiBar(){
   const[s,set]=useState(()=>Object.fromEntries(API_CHECKS.map(a=>[a.id,"checking"])));
@@ -1966,9 +1968,9 @@ function ProfilePage({pol,pols,allTrades,onSelect,onBack,user,onSetUser}){
               </div>
             ))}
             <div style={{marginTop:24}}>
-              <div style={{fontWeight:700,fontSize:16,color:"#fff",marginBottom:8}}>Recent {pol.chamber} Votes</div>
-              <p style={{fontSize:13,color:"rgba(255,255,255,.35)",marginBottom:14}}>Latest roll call votes in the {pol.chamber}. Individual member votes require GovTrack premium access.</p>
-              <RecentChamberVotes chamber={pol.chamber}/>
+              <div style={{fontWeight:700,fontSize:16,color:"#fff",marginBottom:8}}>Voting Record</div>
+              <p style={{fontSize:13,color:"rgba(255,255,255,.35)",marginBottom:14}}>Per-member roll call votes and DW-NOMINATE ideology score from Voteview.com.</p>
+              <MemberVotingRecord pol={pol}/>
             </div>
           </div>
         )}
@@ -2212,9 +2214,9 @@ function _ProfilePageV6Unused({pol,onBack,user,onSetUser}){
               </div>
             ))}
             <div style={{marginTop:24}}>
-              <div style={{fontWeight:700,fontSize:16,color:"#fff",marginBottom:8}}>Recent {pol.chamber} Votes</div>
-              <p style={{fontSize:13,color:"rgba(255,255,255,.35)",marginBottom:14}}>Latest roll call votes in the {pol.chamber}. Individual member votes require GovTrack premium access.</p>
-              <RecentChamberVotes chamber={pol.chamber}/>
+              <div style={{fontWeight:700,fontSize:16,color:"#fff",marginBottom:8}}>Voting Record</div>
+              <p style={{fontSize:13,color:"rgba(255,255,255,.35)",marginBottom:14}}>Per-member roll call votes and DW-NOMINATE ideology score from Voteview.com.</p>
+              <MemberVotingRecord pol={pol}/>
             </div>
           </div>
         )}
@@ -3335,6 +3337,7 @@ function AboutPage(){
     {name:"Federal Register",desc:"Latest regulatory documents — proposed rules, final rules, notices from federal agencies.",url:"https://www.federalregister.gov/developers",refresh:"Live on each visit",status:"10 most recent documents"},
     {name:"GovTrack.us",desc:"Congressional voting records, member contact information, office addresses, and leadership positions.",url:"https://www.govtrack.us/about-our-data",refresh:"Weekly via GitHub Actions cron",status:"539 members + 100 recent votes"},
     {name:"QuiverQuant",desc:"Current congressional stock trades — both Senate and House members. Includes performance vs S&P 500.",url:"https://www.quiverquant.com/congresstrading/",refresh:"Daily via GitHub Actions cron",status:"1,000 trades from 48 officials (2025-2026)"},
+    {name:"Voteview (UCLA)",desc:"Per-member voting records on every roll call vote. Includes DW-NOMINATE ideology scores.",url:"https://voteview.com/data",refresh:"Weekly via GitHub Actions cron",status:"244,446 individual votes across 426 members"},
   ];
   return(
     <div style={{background:"#020617",minHeight:"100vh",paddingBottom:60}}>
@@ -3387,26 +3390,44 @@ function AboutPage(){
   );
 }
 
-/* ── RECENT CHAMBER VOTES ───────────────── */
-function RecentChamberVotes({chamber}){
-  const[votes,setVotes]=useState([]);
-  useEffect(()=>{GOVTRACK_VOTES.then(v=>setVotes(v.filter(x=>x.chamber===(chamber==="Senate"?"senate":"house")).slice(0,10))).catch(()=>{});},[chamber]);
-  if(!votes.length)return <div style={{color:"rgba(255,255,255,.25)",fontSize:13}}>Loading votes...</div>;
-  return <div style={{display:"flex",flexDirection:"column",gap:8}}>
+/* ── MEMBER VOTING RECORD (Voteview) ───────────────── */
+function MemberVotingRecord({pol}){
+  const[data,setData]=useState(null);const[showAll,setShowAll]=useState(false);const m=mob();
+  useEffect(()=>{VOTEVIEW_P.then(mv=>{setData(mv[pol.bioguideId]||null);}).catch(()=>{});},[pol.bioguideId]);
+  if(!data)return <div style={{color:"rgba(255,255,255,.25)",fontSize:13,padding:"12px 0"}}>Loading voting record...</div>;
+  const votes=showAll?data.votes:data.votes.slice(0,10);
+  return(<div>
+    <div style={{display:"grid",gridTemplateColumns:m?"1fr 1fr":"repeat(4,1fr)",gap:12,marginBottom:20}}>
+      <div style={{background:"rgba(99,102,241,.06)",borderRadius:12,padding:14,textAlign:"center"}}><div style={{fontSize:22,fontWeight:900,color:"#6366f1"}}>{data.totalVotes}</div><div style={{fontSize:12,color:"rgba(255,255,255,.3)"}}>Total Votes</div></div>
+      <div style={{background:"rgba(34,197,94,.06)",borderRadius:12,padding:14,textAlign:"center"}}><div style={{fontSize:22,fontWeight:900,color:"#4ade80"}}>{data.yeaCount}</div><div style={{fontSize:12,color:"rgba(255,255,255,.3)"}}>Yea ({data.yeaPct}%)</div></div>
+      <div style={{background:"rgba(239,68,68,.06)",borderRadius:12,padding:14,textAlign:"center"}}><div style={{fontSize:22,fontWeight:900,color:"#f87171"}}>{data.nayCount}</div><div style={{fontSize:12,color:"rgba(255,255,255,.3)"}}>Nay</div></div>
+      <div style={{background:"rgba(245,158,11,.06)",borderRadius:12,padding:14,textAlign:"center"}}><div style={{fontSize:22,fontWeight:900,color:"#fbbf24"}}>{data.absentCount}</div><div style={{fontSize:12,color:"rgba(255,255,255,.3)"}}>Absent</div></div>
+    </div>
+    {data.info?.nominate1!=null&&<div style={{marginBottom:16,padding:"12px 16px",background:"rgba(99,102,241,.04)",border:"1px solid rgba(99,102,241,.1)",borderRadius:10}}>
+      <div style={{fontSize:13,fontWeight:700,color:"#a5b4fc",marginBottom:4}}>Ideology Score (DW-NOMINATE)</div>
+      <div style={{display:"flex",alignItems:"center",gap:12}}>
+        <span style={{fontSize:12,color:"#3b82f6"}}>← Liberal</span>
+        <div style={{flex:1,height:8,borderRadius:4,background:"linear-gradient(90deg,#3b82f6,#94a3b8,#ef4444)",position:"relative"}}>
+          <div style={{position:"absolute",top:-4,left:`${((data.info.nominate1+1)/2)*100}%`,width:16,height:16,borderRadius:"50%",background:"#fff",border:"2px solid #6366f1",transform:"translateX(-50%)"}}/>
+        </div>
+        <span style={{fontSize:12,color:"#ef4444"}}>Conservative →</span>
+      </div>
+      <div style={{fontSize:12,color:"rgba(255,255,255,.3)",marginTop:6,textAlign:"center"}}>Score: {data.info.nominate1.toFixed(3)} (range: -1 liberal to +1 conservative)</div>
+    </div>}
+    <div style={{fontSize:14,fontWeight:700,color:"#fff",marginBottom:12}}>Recent Roll Call Votes</div>
     {votes.map((v,i)=>(
-      <div key={i} style={{background:"rgba(20,184,166,.03)",border:"1px solid rgba(20,184,166,.08)",borderRadius:10,padding:14}}>
-        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6,flexWrap:"wrap"}}>
-          <span style={{fontSize:13,fontWeight:700,color:v.result?.includes("Pass")||v.result?.includes("Agreed")?"#4ade80":"#f87171"}}>{v.result}</span>
-          <span style={{fontSize:12,color:"rgba(255,255,255,.3)"}}>{(v.created||"").slice(0,10)}</span>
+      <div key={i} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 0",borderBottom:"1px solid rgba(255,255,255,.04)"}}>
+        <div style={{width:60,textAlign:"center"}}><span style={{fontSize:13,fontWeight:800,color:v.vote==="Yea"?"#4ade80":v.vote==="Nay"?"#f87171":v.vote==="Absent"?"#fbbf24":"#94a3b8",background:v.vote==="Yea"?"rgba(74,222,128,.1)":v.vote==="Nay"?"rgba(248,113,113,.1)":"rgba(255,255,255,.05)",padding:"3px 10px",borderRadius:6}}>{v.vote}</span></div>
+        <div style={{flex:1,minWidth:0}}>
+          <div style={{fontSize:13,fontWeight:600,color:"#e2e8f0",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{v.description||v.question||"Roll call #"+v.rollNumber}</div>
+          <div style={{fontSize:12,color:"rgba(255,255,255,.3)"}}>{v.date}{v.billNumber?" · "+v.billNumber:""}{v.result?" · "+v.result:""}</div>
         </div>
-        <div style={{fontSize:14,fontWeight:600,color:"#e2e8f0",lineHeight:1.4}}>{(v.related_bill__title_without_number||v.question||"").slice(0,120)}</div>
-        <div style={{display:"flex",gap:12,marginTop:6,fontSize:13}}>
-          <span style={{color:"#4ade80"}}>{"\u2713"} {v.total_plus}</span>
-          <span style={{color:"#f87171"}}>{"\u2717"} {v.total_minus}</span>
-        </div>
+        {v.yeaCount>0&&<div style={{fontSize:12,color:"rgba(255,255,255,.25)",flexShrink:0}}>{v.yeaCount}-{v.nayCount}</div>}
       </div>
     ))}
-  </div>;
+    {data.votes.length>10&&<button onClick={()=>setShowAll(!showAll)} style={{marginTop:12,padding:"10px 20px",borderRadius:10,border:"1px solid rgba(99,102,241,.2)",background:"rgba(99,102,241,.06)",color:"#a5b4fc",fontSize:13,fontWeight:600,cursor:"pointer",width:"100%"}}>{showAll?`Show less`:`Show all ${data.votes.length} votes`}</button>}
+    <Disclaimer/>
+  </div>);
 }
 
 /* ── DONOR & INDUSTRY EXPLORER ────────── */

@@ -1,0 +1,32 @@
+name: Fetch Voting Records
+
+on:
+  schedule:
+    - cron: '0 9 * * 4'  # Thursdays at 9am UTC
+  workflow_dispatch:
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  fetch-votes:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node scripts/fetch-votes.mjs
+      - name: Check for changes
+        id: changes
+        run: git diff --quiet public/data/voting-records.json && echo "changed=false" >> $GITHUB_OUTPUT || echo "changed=true" >> $GITHUB_OUTPUT
+      - name: Commit
+        if: steps.changes.outputs.changed == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add public/data/voting-records.json
+          git commit -m "chore: update voting records $(date -u +%Y-%m-%d)"
+          git push
