@@ -118,7 +118,13 @@ function toISO(s){const d=parseAnyDate(s);return d&&!isNaN(d)?(d.toISOString().s
 function computeGap(tx,disc){try{if(!tx||!disc||tx==="--"||disc==="--")return 0;const a=parseAnyDate(tx);const b=parseAnyDate(disc);if(!a||!b||isNaN(a)||isNaN(b))return 0;return Math.max(0,Math.round((b-a)/86400000));}catch(e){return 0;}}
 const normH=t=>({name:(t.representative||"").replace(/^(Rep\.\s*)/i,"").trim(),ticker:t.ticker&&t.ticker!="--"&&t.ticker!="N/A"?t.ticker:"",action:/sale|sell/i.test(t.type||"")?"SELL":"BUY",amount:t.amount||"--",tradeDate:t.transaction_date||"--",filedDate:t.disclosure_date||"--",gap:computeGap(t.transaction_date,t.disclosure_date),state:(t.district||"").slice(0,2),source:"House",description:t.asset_description||""});
 const normS2=t=>({name:t.senator||t.name||"",ticker:t.ticker&&t.ticker!="--"&&t.ticker!="N/A"?t.ticker:"",action:/sale|sell/i.test(t.type||t.transaction_type||"")?"SELL":"BUY",amount:t.amount||"--",tradeDate:t.transaction_date||"--",filedDate:t.disclosure_date||"--",gap:computeGap(t.transaction_date,t.disclosure_date),party:t.party||"",state:t.state||"",source:"Senate",description:t.asset_description||t.asset_name||"",owner:t.owner||"",assetType:t.asset_type||""});
-function flagTrade(t){const g=t.gap||0;if(g>45)return{color:"#ef4444",badge:"VIOLATION",txt:g+"d late — exceeds 45-day limit"};if(g>30)return{color:"#f59e0b",badge:"LATE",txt:g+"d — approaching deadline"};if(/500,000|1,000,000/.test(t.amount||""))return{color:"#a855f7",badge:"HIGH VALUE",txt:">$500K trade"};return null;}
+function flagTrade(t){
+  const g=t.gap||0;
+  if(g>45)return{color:"#ef4444",badge:"VIOLATION",txt:`Filed ${g} days after trade — exceeds the 45-day STOCK Act deadline by ${g-45} days. The STOCK Act of 2012 requires members of Congress to disclose stock trades within 45 calendar days.`};
+  if(g>30)return{color:"#f59e0b",badge:"LATE",txt:`Filed ${g} days after trade — approaching the 45-day STOCK Act deadline. Only ${45-g} days remaining before this becomes a violation.`};
+  if(/500,000|1,000,000|5,000,001|50,000,001/.test(t.amount||""))return{color:"#a855f7",badge:"HIGH VALUE",txt:`Trade amount ${t.amount} exceeds $500,000. Large trades by members of Congress receive extra scrutiny under the STOCK Act.`};
+  return null;
+}
 const calcRisk=(trades,raised)=>{let s=0;s+=Math.min(45,trades.filter(t=>t.gap>45).length*15);s+=Math.min(20,trades.filter(t=>t.gap>30&&t.gap<=45).length*5);s+=Math.min(15,trades.filter(t=>/500,000|1,000,000/.test(t.amount||"")).length*7);s+=trades.length>25?10:trades.length>10?5:0;s+=raised>10e6?8:raised>5e6?4:raised>1e6?2:0;return Math.min(100,s);};
 const riskColor=r=>r>60?"#ef4444":r>30?"#f59e0b":"#10b981";
 const riskLabel=r=>r>60?"HIGH":r>30?"MODERATE":"LOW";
@@ -554,7 +560,7 @@ function TradeModal({trade,pol,onClose}){
   if(!trade)return null;
   return(
     <div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(0,0,0,.7)",backdropFilter:"blur(4px)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
-      <div onClick={e=>e.stopPropagation()} style={{background:"#1e1b4b",border:"1px solid rgba(99,102,241,.3)",borderRadius:20,padding:28,maxWidth:480,width:"100%",boxShadow:"0 20px 60px rgba(0,0,0,.5)"}}>
+      <div onClick={e=>e.stopPropagation()} style={{background:"#18181b",border:"1px solid rgba(99,102,241,.3)",borderRadius:20,padding:28,maxWidth:480,width:"100%",boxShadow:"0 20px 60px rgba(0,0,0,.5)"}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
           <div style={{fontSize:18,fontWeight:900,color:"#fff"}}>Trade Detail</div>
           <button onClick={onClose} style={{background:"rgba(255,255,255,.1)",border:"none",borderRadius:8,padding:"6px 12px",color:"#fff",cursor:"pointer",fontSize:14}}>&#10005;</button>
@@ -584,6 +590,12 @@ function TradeModal({trade,pol,onClose}){
           <div style={{fontSize:12,color:"rgba(255,255,255,.3)",marginBottom:3}}>Description</div>
           <div style={{fontSize:14,color:"#e2e8f0"}}>{trade.description}</div>
         </div>}
+        {(()=>{const flag=flagTrade(trade);return flag?<div style={{marginTop:14,padding:"12px 16px",background:flag.color+"10",border:"1px solid "+flag.color+"30",borderRadius:10}}>
+          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
+            <span style={{fontSize:13,fontWeight:800,color:flag.color}}>{flag.badge}</span>
+          </div>
+          <div style={{fontSize:13,color:"rgba(255,255,255,.5)",lineHeight:1.6}}>{flag.txt}</div>
+        </div>:null;})()}
         {pol&&pol.phone&&<div style={{marginTop:14,padding:"12px 14px",background:"rgba(20,184,166,.06)",border:"1px solid rgba(20,184,166,.15)",borderRadius:10,textAlign:"center"}}>
           <div style={{fontSize:13,color:"#14b8a6",fontWeight:600}}>Contact {pol.name.split(" ").pop()}: {pol.phone}</div>
         </div>}
@@ -599,7 +611,7 @@ function TradeModal({trade,pol,onClose}){
 
 function Tip({text,children}){
   const[show,setShow]=useState(false);
-  return <span style={{position:"relative",cursor:"help",borderBottom:"1px dotted rgba(255,255,255,.2)"}} onMouseEnter={()=>setShow(true)} onMouseLeave={()=>setShow(false)}>{children}{show&&<span style={{position:"absolute",bottom:"calc(100% + 8px)",left:"50%",transform:"translateX(-50%)",background:"#1e1b4b",border:"1px solid rgba(99,102,241,.3)",borderRadius:8,padding:"8px 12px",fontSize:12,color:"rgba(255,255,255,.7)",whiteSpace:"nowrap",zIndex:100,boxShadow:"0 8px 24px rgba(0,0,0,.4)",maxWidth:280,lineHeight:1.4}}>{text}</span>}</span>;
+  return <span style={{position:"relative",cursor:"help",borderBottom:"1px dotted rgba(255,255,255,.2)"}} onMouseEnter={()=>setShow(true)} onMouseLeave={()=>setShow(false)}>{children}{show&&<span style={{position:"absolute",bottom:"calc(100% + 8px)",left:"50%",transform:"translateX(-50%)",background:"#18181b",border:"1px solid rgba(99,102,241,.3)",borderRadius:8,padding:"8px 12px",fontSize:12,color:"rgba(255,255,255,.7)",whiteSpace:"nowrap",zIndex:100,boxShadow:"0 8px 24px rgba(0,0,0,.4)",maxWidth:280,lineHeight:1.4}}>{text}</span>}</span>;
 }
 
 /* ── API BAR ──────────────────────────── */
@@ -623,7 +635,7 @@ function ApiBar(){
   const live=Object.values(s).filter(v=>v==="ok").length;
   const total=API_CHECKS.length;
   return(
-    <div style={{background:"#020617",borderBottom:"1px solid rgba(99,102,241,.15)",padding:"6px 16px",position:"sticky",top:0,zIndex:400,width:"100%"}}>
+    <div style={{background:"#09090b",borderBottom:"1px solid rgba(99,102,241,.15)",padding:"6px 16px",position:"sticky",top:0,zIndex:400,width:"100%"}}>
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",maxWidth:1200,margin:"0 auto"}}>
         <div style={{display:"flex",alignItems:"center",gap:8}}>
           <div style={{width:7,height:7,borderRadius:"50%",background:live>=7?"#22c55e":"#f59e0b",boxShadow:live>=7?"0 0 6px #22c55e":"none"}}/>
@@ -763,7 +775,7 @@ function ViolationBoard({trades,pols,onSelect}){
   if(!leaders.length&&!topTraders.length)return null;
   const showTraders=!leaders.length&&topTraders.length>0;
   return(
-    <div style={{background:"linear-gradient(135deg,#1e1b4b,#1e293b)",padding:"60px 0"}}>
+    <div style={{background:"linear-gradient(135deg,#18181b,#27272a)",padding:"60px 0"}}>
       <CW>
         {showTraders?<>
           <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:24}}>
@@ -827,7 +839,7 @@ function SectorHeatmap({trades}){
   const maxTotal=sectors[0]&&sectors[0].total||1;
   const selData=selectedSector?sectors.find(s=>s.name===selectedSector):null;
   return(
-    <div style={{background:"#020617",padding:"60px 0"}}>
+    <div style={{background:"#09090b",padding:"60px 0"}}>
       <CW>
         <div style={{textAlign:"center",marginBottom:32}}>
           <div style={{fontSize:12,fontWeight:700,color:"rgba(168,85,247,.6)",textTransform:"uppercase",letterSpacing:1.5,marginBottom:10}}>From real STOCK Act disclosures</div>
@@ -899,7 +911,7 @@ function FollowMoney({pols,trades,onSelect}){
   const topTraders=useMemo(()=>{const m={};(trades||[]).forEach(t=>{if(!t.name)return;m[t.name]=(m[t.name]||0)+1;});return Object.entries(m).sort((a,b)=>b[1]-a[1]).slice(0,6).map(([name,cnt])=>{const ln=(name||"").toLowerCase().split(/\s+/).pop();const fi=(name||"")[0]?name[0].toLowerCase():"";return{name,cnt,pol:pols.find(p=>{const pln=p.name.toLowerCase().split(/\s+/).pop();const pfi=p.name[0]?p.name[0].toLowerCase():"";return ln.length>=3&&pln.endsWith(ln)&&(pfi===fi||(NICKS[fi]&&pfi===NICKS[fi][0]));})};});},[trades,pols]);
   const m=mob();
   return(
-    <div style={{background:"linear-gradient(135deg,#1e1b4b,#07030f)",padding:"72px 0"}}>
+    <div style={{background:"linear-gradient(135deg,#18181b,#07030f)",padding:"72px 0"}}>
       <CW>
         <div style={{textAlign:"center",marginBottom:36}}>
           <div style={{fontSize:12,fontWeight:700,color:"rgba(168,85,247,.6)",textTransform:"uppercase",letterSpacing:1.5,marginBottom:10}}>OpenFEC API · cycles 2020–2026</div>
@@ -971,7 +983,7 @@ function LDASection(){
   const shown=useMemo(()=>{if(!data||!data.filings||!data.filings.length)return[];const f=data.filings;if(!q)return f.slice(0,12);const lq=q.toLowerCase();return f.filter(fi=>((fi.registrant&&fi.registrant.name)||"").toLowerCase().includes(lq)||((fi.client&&fi.client.name)||"").toLowerCase().includes(lq)||(fi.lobbying_activities||[]).some(a=>(a.general_issue_code_display||a.issue_code||"").toLowerCase().includes(lq))).slice(0,12);},[data,q]);
   const topIssues=useMemo(()=>{if(!data||!data.filings)return[];const m={};data.filings.forEach(f=>{(f.lobbying_activities||[]).forEach(a=>{const iss=a.general_issue_code_display||a.issue_code;if(iss)m[iss]=(m[iss]||0)+1;});});return Object.entries(m).sort((a,b)=>b[1]-a[1]).slice(0,10);},[data]);
   return(
-    <div data-section="lda" style={{background:"linear-gradient(180deg,#1e293b,#07030f)",padding:"60px 0"}}>
+    <div data-section="lda" style={{background:"linear-gradient(180deg,#27272a,#07030f)",padding:"60px 0"}}>
       <CW>
         <div style={{display:"flex",alignItems:"flex-end",justifyContent:"space-between",flexWrap:"wrap",gap:14,marginBottom:24}}>
           <div>
@@ -1024,7 +1036,7 @@ function BillsSection(){
   const bills=data?(tab==="hr"?data.hr:data.s):[];
   const TC={HR:"#3b82f6",S:"#ef4444",HJRES:"#f59e0b",SJRES:"#f59e0b"};
   return(
-    <div style={{background:"#020617",padding:"60px 0"}}>
+    <div style={{background:"#09090b",padding:"60px 0"}}>
       <CW>
         <div style={{textAlign:"center",marginBottom:28}}>
           <div style={{fontSize:12,fontWeight:700,color:"rgba(168,85,247,.6)",textTransform:"uppercase",letterSpacing:1.5,marginBottom:10}}>Congress.gov API · live</div>
@@ -1211,7 +1223,7 @@ function DataInsights({pols,trades}){
   if(!insights.length)return null;
   const m=mob();
   return(
-    <div style={{background:"linear-gradient(135deg,#1e1b4b,#020617)",padding:"60px 0"}}>
+    <div style={{background:"linear-gradient(135deg,#18181b,#09090b)",padding:"60px 0"}}>
       <CW>
         <div style={{textAlign:"center",marginBottom:32}}>
           <div style={{fontSize:12,fontWeight:700,color:"rgba(99,102,241,.6)",textTransform:"uppercase",letterSpacing:1.5,marginBottom:12}}>Cross-Referenced Analysis</div>
@@ -1249,7 +1261,7 @@ function FARASection(){
   const countryCounts=useMemo(()=>{const m={};registrants.forEach(r=>{const c=r.country||r.registrant_country||"Unknown";if(c&&c!=="Unknown")m[c]=(m[c]||0)+1;});return Object.entries(m).sort((a,b)=>b[1]-a[1]).slice(0,8);},[registrants]);
   const maxCountry=countryCounts.length>0?countryCounts[0][1]:1;
   return(
-    <div style={{background:"#020617",padding:"60px 0"}}>
+    <div style={{background:"#09090b",padding:"60px 0"}}>
       <CW>
         <div style={{textAlign:"center",marginBottom:28}}>
           <div style={{fontSize:12,fontWeight:700,color:"rgba(249,115,22,.6)",textTransform:"uppercase",letterSpacing:1.5,marginBottom:10}}>FARA · Foreign Agent Registration Act</div>
@@ -1363,7 +1375,7 @@ function TradingTimeline({trades}){
     d3.select(el).selectAll(".tt-tip").remove();
     const tooltip=d3.select(el).append("div").attr("class","tt-tip")
       .style("position","absolute").style("display","none")
-      .style("background","#1e1b4b").style("border","1px solid rgba(99,102,241,.3)")
+      .style("background","#18181b").style("border","1px solid rgba(99,102,241,.3)")
       .style("border-radius","8px").style("padding","10px 14px")
       .style("font-size","13px").style("color","#e2e8f0")
       .style("pointer-events","none").style("z-index","10")
@@ -1413,7 +1425,7 @@ function TradingTimeline({trades}){
     g.append("text").attr("transform","rotate(-90)").attr("y",-38).attr("x",-h/2).attr("text-anchor","middle").attr("fill","rgba(255,255,255,.25)").attr("font-size",10).text("Trade Count");
   },[trades,dims]);
   return(
-    <div style={{background:"linear-gradient(180deg,#1e293b,#07030f)",padding:"60px 0"}}>
+    <div style={{background:"linear-gradient(180deg,#27272a,#07030f)",padding:"60px 0"}}>
       <CW>
         <div style={{textAlign:"center",marginBottom:28}}>
           <div style={{fontSize:12,fontWeight:700,color:"rgba(168,85,247,.6)",textTransform:"uppercase",letterSpacing:1.5,marginBottom:10}}>D3.js · Monthly Trade Volume</div>
@@ -1435,15 +1447,16 @@ function TradingTimeline({trades}){
 
 /* ── INTEL FEED ───────────────────────── */
 function IntelFeed({trades,pols}){
-  const buys=useMemo(()=>(trades||[]).filter(t=>t.action==="BUY"&&t.ticker).slice(0,15),[trades]);
-  const sells=useMemo(()=>(trades||[]).filter(t=>t.action==="SELL"&&t.ticker).slice(0,15),[trades]);
+  const activeTrades=useMemo(()=>(trades||[]).filter(t=>t.ticker&&(pols||[]).some(p=>{const ln=(t.name||"").toLowerCase().split(/\s+/).pop();return ln.length>=3&&p.name.toLowerCase().endsWith(ln);})),[trades,pols]);
+  const buys=useMemo(()=>activeTrades.filter(t=>t.action==="BUY").slice(0,15),[activeTrades]);
+  const sells=useMemo(()=>activeTrades.filter(t=>t.action==="SELL").slice(0,15),[activeTrades]);
   const violations=(trades||[]).filter(t=>t.gap>45).length;
   const highValue=(trades||[]).filter(t=>/500,000|1,000,000|5,000,001/.test(t.amount||"")).length;
   const uniqueTraders=new Set((trades||[]).map(t=>t.name)).size;
   const[selTrade,setSelTrade]=useState(null);
   const m=mob();
   return(
-    <div style={{background:"linear-gradient(180deg,#1e1b4b,#1e293b)",padding:"60px 0"}}>
+    <div style={{background:"linear-gradient(180deg,#18181b,#27272a)",padding:"60px 0"}}>
       <CW>
         <div style={{display:"flex",alignItems:"flex-end",justifyContent:"space-between",flexWrap:"wrap",gap:14,marginBottom:22}}>
           <div>
@@ -1608,7 +1621,7 @@ function ProfilePage({pol,pols,allTrades,onSelect,onBack,user,onSetUser}){
   const TABS=[{id:"overview",l:"FEC Overview"},{id:"money",l:"Deep Finance"},{id:"trades",l:"Trades",hot:violations>0},{id:"bills",l:"Legislation"},{id:"lobbying",l:"Lobbying"},{id:"ai",l:"AI Briefing",ai:true}];
   const ds={background:"rgba(168,85,247,.04)",border:"1px solid rgba(168,85,247,.12)",borderRadius:14,padding:22};
   return(
-    <div style={{background:"#020617",minHeight:"100vh",paddingBottom:60}}>
+    <div style={{background:"#09090b",minHeight:"100vh",paddingBottom:60}}>
       <CW pad="0 28px">
         <div style={{padding:"16px 0",display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
           <button onClick={onBack} style={{background:"rgba(168,85,247,.08)",border:"1px solid rgba(168,85,247,.2)",cursor:"pointer",color:"#a78bfa",fontWeight:700,fontSize:12,padding:"7px 14px",borderRadius:8}}>← Back</button>
@@ -1625,7 +1638,7 @@ function ProfilePage({pol,pols,allTrades,onSelect,onBack,user,onSetUser}){
           </div>
         )}
         {/* Profile header */}
-        <div style={{background:"linear-gradient(135deg,#1e1b4b,#1e293b)",border:"1px solid rgba(168,85,247,.15)",borderRadius:20,padding:m?"18px":"24px",marginBottom:16,position:"relative",overflow:"hidden"}}>
+        <div style={{background:"linear-gradient(135deg,#18181b,#27272a)",border:"1px solid rgba(168,85,247,.15)",borderRadius:20,padding:m?"18px":"24px",marginBottom:16,position:"relative",overflow:"hidden"}}>
           <div style={{position:"absolute",top:0,left:0,right:0,height:3,background:`linear-gradient(90deg,${PC[pol.party]},transparent)`}}/>
           <div style={{display:"flex",gap:18,alignItems:"flex-start",flexWrap:"wrap"}}>
             <Avatar pol={pol} size={m?52:68} ring="#a78bfa"/>
@@ -2045,7 +2058,7 @@ function ProfilePage({pol,pols,allTrades,onSelect,onBack,user,onSetUser}){
             <div style={{background:"rgba(168,85,247,.05)",border:"1px solid rgba(168,85,247,.12)",borderRadius:14,padding:20}}>
               <div style={{display:"flex",gap:14,alignItems:"center",flexWrap:"wrap",marginBottom:14}}>
                 <div style={{width:64,height:64,borderRadius:"50%",background:`conic-gradient(${rC} ${risk*3.6}deg,rgba(255,255,255,.05) 0deg)`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
-                  <div style={{width:50,height:50,borderRadius:"50%",background:"#020617",display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column"}}><div style={{fontSize:16,fontWeight:900,color:rC,lineHeight:1}}>{risk}</div><div style={{fontSize:7,color:"rgba(255,255,255,.25)"}}>RISK</div></div>
+                  <div style={{width:50,height:50,borderRadius:"50%",background:"#09090b",display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column"}}><div style={{fontSize:16,fontWeight:900,color:rC,lineHeight:1}}>{risk}</div><div style={{fontSize:7,color:"rgba(255,255,255,.25)"}}>RISK</div></div>
                 </div>
                 <div style={{flex:1}}>
                   <div style={{fontSize:13,fontWeight:700,color:rC,marginBottom:4}}>{riskLabel(risk)} RISK · {trades.length} disclosures · {violations} violation{violations!==1?"s":""}</div>
@@ -2172,7 +2185,7 @@ function _ProfilePageV6Unused({pol,onBack,user,onSetUser}){
   const TABS=[{id:"overview",l:"Overview"},{id:"trades",l:"Trades",hot:violations>0},{id:"bills",l:"Legislation"},{id:"ai",l:"AI Briefing",ai:true}];
   const ds={background:"rgba(168,85,247,.04)",border:"1px solid rgba(168,85,247,.12)",borderRadius:14,padding:22};
   return(
-    <div style={{background:"#020617",minHeight:"100vh",paddingBottom:60}}>
+    <div style={{background:"#09090b",minHeight:"100vh",paddingBottom:60}}>
       <CW pad="0 28px">
         <div style={{padding:"16px 0",display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
           <button onClick={onBack} style={{background:"rgba(168,85,247,.08)",border:"1px solid rgba(168,85,247,.2)",cursor:"pointer",color:"#a78bfa",fontWeight:700,fontSize:12,padding:"7px 14px",borderRadius:8}}>← Back</button>
@@ -2189,7 +2202,7 @@ function _ProfilePageV6Unused({pol,onBack,user,onSetUser}){
           </div>
         )}
         {/* Header Card */}
-        <div style={{background:"linear-gradient(135deg,#1e1b4b,#1e293b)",border:"1px solid rgba(168,85,247,.15)",borderRadius:20,padding:m?"18px":"24px",marginBottom:16,position:"relative",overflow:"hidden"}}>
+        <div style={{background:"linear-gradient(135deg,#18181b,#27272a)",border:"1px solid rgba(168,85,247,.15)",borderRadius:20,padding:m?"18px":"24px",marginBottom:16,position:"relative",overflow:"hidden"}}>
           <div style={{position:"absolute",top:0,left:0,right:0,height:3,background:`linear-gradient(90deg,${PC[pol.party]},transparent)`}}/>
           <div style={{display:"flex",gap:18,alignItems:"flex-start",flexWrap:"wrap"}}>
             <Avatar pol={pol} size={m?52:68} ring="#a78bfa"/>
@@ -2288,7 +2301,7 @@ function _ProfilePageV6Unused({pol,onBack,user,onSetUser}){
             <div style={{background:"linear-gradient(135deg,rgba(168,85,247,.06),rgba(168,85,247,.02))",border:"1px solid rgba(168,85,247,.15)",borderRadius:14,padding:20}}>
               <div style={{display:"flex",gap:14,alignItems:"center",flexWrap:"wrap",marginBottom:14}}>
                 <div style={{width:64,height:64,borderRadius:"50%",background:`conic-gradient(${rC} ${risk*3.6}deg,rgba(255,255,255,.05) 0deg)`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
-                  <div style={{width:50,height:50,borderRadius:"50%",background:"#020617",display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column"}}><div style={{fontSize:16,fontWeight:900,color:rC,lineHeight:1}}>{risk}</div><div style={{fontSize:7,color:"rgba(255,255,255,.25)"}}>RISK</div></div>
+                  <div style={{width:50,height:50,borderRadius:"50%",background:"#09090b",display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column"}}><div style={{fontSize:16,fontWeight:900,color:rC,lineHeight:1}}>{risk}</div><div style={{fontSize:7,color:"rgba(255,255,255,.25)"}}>RISK</div></div>
                 </div>
                 <div><div style={{fontSize:13,fontWeight:700,color:rC,marginBottom:4}}>{riskLabel(risk)} RISK</div><div style={{fontSize:12,color:"rgba(255,255,255,.35)"}}>{trades.length} disclosures · {violations} violation{violations!==1?"s":""} · from QuiverQuant Congressional Trading</div></div>
                 <div style={{marginLeft:"auto",display:"flex",gap:8}}>
@@ -2450,8 +2463,8 @@ function UserDashboard({user,pols,onSelect,onSetUser}){
   const toggleCompare=polId=>{setCompare(prev=>prev.includes(polId)?prev.filter(x=>x!==polId):prev.length<2?[...prev,polId]:prev);};
   const comparePols=compare.map(id=>watchedPols.find(p=>p.id===id)).filter(Boolean);
   return(
-    <div style={{background:"#020617",minHeight:"100vh",paddingBottom:60}}>
-      <div style={{background:"linear-gradient(135deg,#1e1b4b,#1e293b)",borderBottom:"1px solid rgba(168,85,247,.12)",padding:"28px 0 22px"}}>
+    <div style={{background:"#09090b",minHeight:"100vh",paddingBottom:60}}>
+      <div style={{background:"linear-gradient(135deg,#18181b,#27272a)",borderBottom:"1px solid rgba(168,85,247,.12)",padding:"28px 0 22px"}}>
         <CW>
           <div style={{display:"flex",alignItems:"center",gap:14,marginBottom:18,flexWrap:"wrap"}}>
             <div style={{width:46,height:46,borderRadius:"50%",background:"linear-gradient(135deg,#7c3aed,#a78bfa)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,fontWeight:900,color:"#fff"}}>{(user.name||"U")[0].toUpperCase()}</div>
@@ -2581,8 +2594,8 @@ function AdminDashboard({pols,trades}){
   const TABS=[{id:"overview",l:"Overview"},{id:"violations",l:"Violations"},{id:"tickers",l:"Tickers"},{id:"geographic",l:"Geographic"},{id:"temporal",l:"Temporal"},{id:"fara",l:"FARA"},{id:"spending",l:"Spending"},{id:"insider",l:"Insider Flags"},{id:"users",l:"Users"},{id:"apis",l:"API Health"},{id:"regs",l:"Regulations"}];
   const ds={background:"rgba(168,85,247,.05)",border:"1px solid rgba(168,85,247,.1)",borderRadius:14,padding:22};
   return(
-    <div style={{background:"#020617",minHeight:"100vh",paddingBottom:60}}>
-      <div style={{background:"linear-gradient(135deg,#1e1b4b,#1e293b)",borderBottom:"1px solid rgba(168,85,247,.12)",padding:"26px 0 20px"}}>
+    <div style={{background:"#09090b",minHeight:"100vh",paddingBottom:60}}>
+      <div style={{background:"linear-gradient(135deg,#18181b,#27272a)",borderBottom:"1px solid rgba(168,85,247,.12)",padding:"26px 0 20px"}}>
         <CW>
           <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:18,flexWrap:"wrap"}}>
             <div style={{width:40,height:40,borderRadius:10,background:"rgba(239,68,68,.15)",border:"1px solid rgba(239,68,68,.3)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>🛡</div>
@@ -2803,8 +2816,8 @@ function BrowsePage({pols,trades,onSelect,user,onSetUser}){
   const upd=(k,v)=>{setF(f=>({...f,[k]:v}));setPg(1);};
   const ss={padding:"9px 13px",borderRadius:9,border:"1px solid rgba(168,85,247,.2)",background:"rgba(168,85,247,.06)",color:"#fff",fontSize:12,cursor:"pointer",outline:"none"};
   return(
-    <div style={{background:"#020617",minHeight:"100vh",paddingBottom:60}}>
-      <div style={{background:"linear-gradient(135deg,#1e1b4b,#1e293b)",borderBottom:"1px solid rgba(168,85,247,.12)",padding:"28px 0 24px"}}>
+    <div style={{background:"#09090b",minHeight:"100vh",paddingBottom:60}}>
+      <div style={{background:"linear-gradient(135deg,#18181b,#27272a)",borderBottom:"1px solid rgba(168,85,247,.12)",padding:"28px 0 24px"}}>
         <CW>
           <div style={{display:"flex",alignItems:"baseline",gap:14,flexWrap:"wrap",marginBottom:20}}>
             <h1 style={{fontSize:m?24:32,fontWeight:900,color:"#fff",margin:0,letterSpacing:-1}}>Browse Officials</h1>
@@ -2899,7 +2912,7 @@ function Nav({page,onNav,user,onLogout,pols,violations,onSelect}){
           {!m&&<div style={{position:"relative",flex:1,maxWidth:280,margin:"0 16px"}}>
             <input value={searchQ} onChange={e=>setSearchQ(e.target.value)} placeholder="Search officials, tickers..." style={{width:"100%",padding:"8px 14px 8px 34px",borderRadius:10,border:"1px solid rgba(99,102,241,.15)",background:"rgba(99,102,241,.05)",color:"#fff",fontSize:13,outline:"none"}} onFocus={e=>e.target.style.borderColor="rgba(99,102,241,.4)"} onBlur={e=>{setTimeout(()=>{setSearchQ("");e.target.style.borderColor="rgba(99,102,241,.15)";},200);}}/>
             <svg style={{position:"absolute",left:10,top:"50%",transform:"translateY(-50%)",opacity:.3,pointerEvents:"none"}} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#a5b4fc" strokeWidth="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-            {searchQ.length>1&&<div style={{position:"absolute",top:"calc(100% + 4px)",left:0,right:0,background:"#1e1b4b",borderRadius:12,boxShadow:"0 12px 40px rgba(0,0,0,.6)",zIndex:100,overflow:"hidden",border:"1px solid rgba(99,102,241,.2)",maxHeight:300,overflowY:"auto"}}>
+            {searchQ.length>1&&<div style={{position:"absolute",top:"calc(100% + 4px)",left:0,right:0,background:"#18181b",borderRadius:12,boxShadow:"0 12px 40px rgba(0,0,0,.6)",zIndex:100,overflow:"hidden",border:"1px solid rgba(99,102,241,.2)",maxHeight:300,overflowY:"auto"}}>
               {pols.filter(p=>p.name.toLowerCase().includes(searchQ.toLowerCase())||(p.state||"").toLowerCase()===searchQ.toLowerCase()).slice(0,6).map(p=>(
                 <div key={p.id} onClick={()=>{setSearchQ("");onSelect(p);}} onMouseEnter={e=>e.currentTarget.style.background="rgba(99,102,241,.1)"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}
                   style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",cursor:"pointer",borderBottom:"1px solid rgba(99,102,241,.06)"}}>
@@ -2944,7 +2957,7 @@ function TopStates({pols}){
   if(!byState.length)return null;
   const max=byState[0][1];
   return(
-    <div style={{background:"#020617",padding:"60px 0"}}>
+    <div style={{background:"#09090b",padding:"60px 0"}}>
       <CW>
         <div style={{textAlign:"center",marginBottom:28}}>
           <div style={{fontSize:12,fontWeight:700,color:"rgba(245,158,11,.6)",textTransform:"uppercase",letterSpacing:1.5,marginBottom:10}}>FEC Data by State</div>
@@ -2980,7 +2993,7 @@ function ForeignInfluenceMap(){
   if(!data||!byCountry.length)return null;
   const max=byCountry[0][1];
   return(
-    <div style={{background:"linear-gradient(180deg,#020617,#1a0a20)",padding:"60px 0"}}>
+    <div style={{background:"linear-gradient(180deg,#09090b,#1a0a20)",padding:"60px 0"}}>
       <CW>
         <div style={{textAlign:"center",marginBottom:28}}>
           <div style={{fontSize:12,fontWeight:700,color:"rgba(249,115,22,.6)",textTransform:"uppercase",letterSpacing:1.5,marginBottom:10}}>FARA Foreign Principals</div>
@@ -3008,7 +3021,7 @@ function BigTrades({trades,pols}){
   const big=useMemo(()=>(trades||[]).filter(t=>/1,000,000|5,000,001|50,000,001/.test(t.amount||"")&&t.ticker&&t.ticker!=="N/A").slice(0,12),[trades]);
   if(!big.length)return null;
   return(
-    <div style={{background:"linear-gradient(180deg,#1a0520,#020617)",padding:"60px 0"}}>
+    <div style={{background:"linear-gradient(180deg,#1a0520,#09090b)",padding:"60px 0"}}>
       <CW>
         <div style={{textAlign:"center",marginBottom:28}}>
           <div style={{fontSize:12,fontWeight:700,color:"rgba(168,85,247,.6)",textTransform:"uppercase",letterSpacing:1.5,marginBottom:10}}>High-Value Disclosures</div>
@@ -3063,7 +3076,7 @@ function LobbyingHotIssues(){
   const max=tags[0][1];const min=tags[tags.length-1][1];
   const sz=(cnt)=>12+Math.round(((cnt-min)/(max-min||1))*18);
   return(
-    <div style={{background:"linear-gradient(180deg,#020617,#0d1425)",padding:"60px 0"}}>
+    <div style={{background:"linear-gradient(180deg,#09090b,#0d1425)",padding:"60px 0"}}>
       <CW>
         <div style={{textAlign:"center",marginBottom:28}}>
           <div style={{fontSize:12,fontWeight:700,color:"rgba(99,102,241,.6)",textTransform:"uppercase",letterSpacing:1.5,marginBottom:10}}>LDA Lobbying Data</div>
@@ -3177,7 +3190,7 @@ function RecentVotes(){
 function DataExplorer(){
   const[tab,setTab]=useState("fara");const m=mob();
   return(
-    <div style={{background:"#020617",padding:"60px 0"}}>
+    <div style={{background:"#09090b",padding:"60px 0"}}>
       <CW>
         <div style={{textAlign:"center",marginBottom:24}}>
           <h2 style={{fontSize:m?22:30,fontWeight:900,color:"#fff",margin:"0 0 8px",letterSpacing:-1}}>Government Data Explorer</h2>
@@ -3214,7 +3227,7 @@ function HomeTabs({trades,pols,onSelect}){
     return p;
   },[pols,htParty,htChamber]);
   return(<>
-    <div style={{background:"#020617",padding:"20px 0 0",position:"sticky",top:80,zIndex:50}}>
+    <div style={{background:"#09090b",padding:"20px 0 0",position:"sticky",top:80,zIndex:50}}>
       <CW>
         <div style={{display:"flex",gap:4,flexWrap:"wrap",paddingBottom:16,overflowX:"auto",borderBottom:"1px solid rgba(99,102,241,.1)"}}>
           {[["feed","Trade Feed"],["big","High-Value"],["leaders","Leaderboard"],["sectors","Sectors"],["money","Follow Money"],["states","States"],["timeline","Timeline"]].map(([id,label])=>(
@@ -3248,12 +3261,12 @@ function HomePage({pols,trades,onBrowse,onSelect,onLogin,user}){
   return(
     <div style={{width:"100%"}}>
       {/* HERO — centered, deep purple */}
-      <div style={{position:"relative",minHeight:"100svh",background:"linear-gradient(135deg,#020617 0%,#1e1b4b 25%,#312e81 45%,#1e1b4b 65%,#020617 100%)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",overflow:"hidden"}}>
+      <div style={{position:"relative",minHeight:"100svh",background:"linear-gradient(135deg,#18181b 0%,#09090b 40%,#0c4a6e 70%,#09090b 100%)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",overflow:"hidden"}}>
         {/* Orbs — vibrant gradient blobs */}
-        <div style={{position:"absolute",width:900,height:900,borderRadius:"50%",background:"radial-gradient(circle,rgba(99,102,241,.25) 0%,rgba(79,70,229,.1) 40%,transparent 70%)",top:"-300px",left:"20%",animation:"orbA 32s ease-in-out infinite",pointerEvents:"none"}}/>
-        <div style={{position:"absolute",width:700,height:700,borderRadius:"50%",background:"radial-gradient(circle,rgba(168,85,247,.2) 0%,rgba(139,92,246,.08) 40%,transparent 70%)",bottom:"-200px",right:"-50px",animation:"orbB 24s ease-in-out infinite",pointerEvents:"none"}}/>
+        <div style={{position:"absolute",width:900,height:900,borderRadius:"50%",background:"radial-gradient(circle,rgba(14,165,233,.15) 0%,rgba(79,70,229,.1) 40%,transparent 70%)",top:"-300px",left:"20%",animation:"orbA 32s ease-in-out infinite",pointerEvents:"none"}}/>
+        <div style={{position:"absolute",width:700,height:700,borderRadius:"50%",background:"radial-gradient(circle,rgba(20,184,166,.12) 0%,rgba(139,92,246,.08) 40%,transparent 70%)",bottom:"-200px",right:"-50px",animation:"orbB 24s ease-in-out infinite",pointerEvents:"none"}}/>
         <div style={{position:"absolute",width:500,height:500,borderRadius:"50%",background:"radial-gradient(circle,rgba(14,165,233,.15) 0%,transparent 65%)",top:"40%",left:"-120px",animation:"orbA 20s ease-in-out infinite",animationDelay:"-10s",pointerEvents:"none"}}/>
-        <div style={{position:"absolute",width:400,height:400,borderRadius:"50%",background:"radial-gradient(circle,rgba(236,72,153,.1) 0%,transparent 60%)",top:"10%",right:"5%",animation:"orbB 28s ease-in-out infinite",animationDelay:"-5s",pointerEvents:"none"}}/>
+        <div style={{position:"absolute",width:400,height:400,borderRadius:"50%",background:"radial-gradient(circle,rgba(6,182,212,.08) 0%,transparent 60%)",top:"10%",right:"5%",animation:"orbB 28s ease-in-out infinite",animationDelay:"-5s",pointerEvents:"none"}}/>
         <div style={{position:"absolute",inset:0,opacity:.45,pointerEvents:"none"}}><FloatingCards pols={pols} trades={trades} onSelect={onSelect}/></div>
         <svg style={{position:"absolute",inset:0,width:"100%",height:"100%",opacity:.02,pointerEvents:"none"}}><defs><pattern id="grd" width="60" height="60" patternUnits="userSpaceOnUse"><path d="M 60 0 L 0 0 0 60" fill="none" stroke="#6366f1" strokeWidth="0.5"/></pattern></defs><rect width="100%" height="100%" fill="url(#grd)"/></svg>
         <div style={{position:"absolute",left:0,right:0,height:1,background:"linear-gradient(90deg,transparent,rgba(99,102,241,.12),transparent)",animation:"scanline 12s linear infinite",pointerEvents:"none"}}/>
@@ -3277,7 +3290,7 @@ function HomePage({pols,trades,onBrowse,onSelect,onLogin,user}){
               onFocus={e=>{e.target.style.borderColor="rgba(168,85,247,.6)";e.target.style.boxShadow="0 0 0 3px rgba(168,85,247,.1)";}} onBlur={e=>{e.target.style.borderColor="rgba(168,85,247,.2)";e.target.style.boxShadow="none";}}/>
             <svg style={{position:"absolute",left:16,top:"50%",transform:"translateY(-50%)",opacity:.4,pointerEvents:"none"}} width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#a78bfa" strokeWidth="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
             {res.length>0&&(
-              <div style={{position:"absolute",top:"calc(100% + 4px)",left:0,right:0,background:"#1e1b4b",borderRadius:13,boxShadow:"0 20px 60px rgba(0,0,0,.7)",zIndex:50,overflow:"hidden",border:"1px solid rgba(168,85,247,.25)"}}>
+              <div style={{position:"absolute",top:"calc(100% + 4px)",left:0,right:0,background:"#18181b",borderRadius:13,boxShadow:"0 20px 60px rgba(0,0,0,.7)",zIndex:50,overflow:"hidden",border:"1px solid rgba(168,85,247,.25)"}}>
                 {res.map(p=>(
                   <div key={p.id} onClick={()=>{setQ("");onSelect(p);}} onMouseEnter={e=>e.currentTarget.style.background="rgba(168,85,247,.08)"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}
                     style={{display:"flex",alignItems:"center",gap:11,padding:"11px 18px",cursor:"pointer",borderBottom:"1px solid rgba(168,85,247,.06)"}}>
@@ -3333,7 +3346,7 @@ function HomePage({pols,trades,onBrowse,onSelect,onLogin,user}){
       <DataInsights pols={pols} trades={trades}/>
       <DataExplorer/>
       {/* Footer */}
-      <div style={{background:"linear-gradient(180deg,#07030f,#1e1b4b)",borderTop:"1px solid rgba(168,85,247,.08)",padding:"48px 0 36px"}}>
+      <div style={{background:"linear-gradient(180deg,#07030f,#18181b)",borderTop:"1px solid rgba(168,85,247,.08)",padding:"48px 0 36px"}}>
         <CW>
           <AboutTheData/>
           <div style={{display:"flex",flexDirection:m?"column":"row",gap:m?24:48,alignItems:m?"center":"flex-start",marginBottom:28}}>
@@ -3378,8 +3391,8 @@ function TradesPage({trades,pols,onSelect}){
     return f;
   },[trades,q,sortBy,filterAction]);
   return(
-    <div style={{background:"#020617",minHeight:"100vh",paddingBottom:60}}>
-      <div style={{background:"linear-gradient(135deg,#1e1b4b,#1e293b)",borderBottom:"1px solid rgba(99,102,241,.12)",padding:"28px 0 24px"}}>
+    <div style={{background:"#09090b",minHeight:"100vh",paddingBottom:60}}>
+      <div style={{background:"linear-gradient(135deg,#18181b,#27272a)",borderBottom:"1px solid rgba(99,102,241,.12)",padding:"28px 0 24px"}}>
         <CW>
           <h1 style={{fontSize:m?24:32,fontWeight:900,color:"#fff",margin:"0 0 8px",letterSpacing:-1}}>Trade Feed</h1>
           <DataFreshness trades={trades}/>
@@ -3423,8 +3436,8 @@ function ViolationsPage({trades,pols,onSelect}){
   const highValue=useMemo(()=>(trades||[]).filter(t=>/500,000|1,000,000|5,000,001/.test(t.amount||"")),[trades]);
   const m=mob();
   return(
-    <div style={{background:"#020617",minHeight:"100vh",paddingBottom:60}}>
-      <div style={{background:"linear-gradient(135deg,#1e1b4b,#1e293b)",borderBottom:"1px solid rgba(239,68,68,.12)",padding:"28px 0 24px"}}>
+    <div style={{background:"#09090b",minHeight:"100vh",paddingBottom:60}}>
+      <div style={{background:"linear-gradient(135deg,#18181b,#27272a)",borderBottom:"1px solid rgba(239,68,68,.12)",padding:"28px 0 24px"}}>
         <CW>
           <h1 style={{fontSize:m?24:32,fontWeight:900,color:"#fff",margin:"0 0 8px",letterSpacing:-1}}>Violations & Flags</h1>
           <p style={{fontSize:14,color:"rgba(255,255,255,.35)",margin:"0 0 20px"}}>STOCK Act requires disclosure within 45 days. These trades were filed late or flagged for high value.</p>
@@ -3432,6 +3445,10 @@ function ViolationsPage({trades,pols,onSelect}){
             <div style={{background:"rgba(239,68,68,.08)",border:"1px solid rgba(239,68,68,.2)",borderRadius:12,padding:"16px 20px"}}><div style={{fontSize:12,color:"rgba(239,68,68,.6)",textTransform:"uppercase",marginBottom:4}}>STOCK Act Violations (&gt;45 days)</div><div style={{fontSize:28,fontWeight:900,color:"#ef4444"}}>{violations.length}</div></div>
             <div style={{background:"rgba(245,158,11,.08)",border:"1px solid rgba(245,158,11,.2)",borderRadius:12,padding:"16px 20px"}}><div style={{fontSize:12,color:"rgba(245,158,11,.6)",textTransform:"uppercase",marginBottom:4}}>Late Filings (30-45 days)</div><div style={{fontSize:28,fontWeight:900,color:"#f59e0b"}}>{late.length}</div></div>
             <div style={{background:"rgba(168,85,247,.08)",border:"1px solid rgba(168,85,247,.2)",borderRadius:12,padding:"16px 20px"}}><div style={{fontSize:12,color:"rgba(168,85,247,.6)",textTransform:"uppercase",marginBottom:4}}>High-Value Trades (&gt;$500K)</div><div style={{fontSize:28,fontWeight:900,color:"#a855f7"}}>{highValue.length}</div></div>
+          </div>
+          <div style={{background:"rgba(239,68,68,.04)",border:"1px solid rgba(239,68,68,.1)",borderRadius:12,padding:18,marginBottom:20,marginTop:20}}>
+            <div style={{fontSize:14,fontWeight:700,color:"#fca5a5",marginBottom:8}}>What is a STOCK Act violation?</div>
+            <div style={{fontSize:13,color:"rgba(255,255,255,.4)",lineHeight:1.7}}>The <strong style={{color:"#e2e8f0"}}>STOCK Act of 2012</strong> requires all members of Congress to publicly disclose any stock trade within <strong style={{color:"#fbbf24"}}>45 calendar days</strong> of the transaction. When a member files their disclosure more than 45 days after the trade, it is flagged as a violation. Trades filed 30-45 days after are flagged as "late" (approaching the deadline). High-value trades over $500,000 receive additional scrutiny regardless of filing timeliness.</div>
           </div>
           <button onClick={()=>{const all=[...violations,...late,...highValue];const seen=new Set();const unique=all.filter(t=>{const k=t.name+"_"+t.ticker+"_"+t.tradeDate;if(seen.has(k))return false;seen.add(k);return true;});const rows=[["Official","Ticker","Action","Amount","Date","Gap (days)","Flag"]];unique.forEach(t=>rows.push([t.name,t.ticker||"N/A",t.action,t.amount,t.tradeDate,t.gap,t.gap>45?"VIOLATION":t.gap>30?"LATE":"HIGH VALUE"]));const csv=rows.map(r=>r.join(",")).join("\n");const blob=new Blob([csv],{type:"text/csv"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download="officium-violations-"+new Date().toISOString().slice(0,10)+".csv";a.click();URL.revokeObjectURL(url);}} style={{marginTop:16,padding:"12px 16px",borderRadius:12,border:"1px solid rgba(239,68,68,.2)",background:"rgba(239,68,68,.06)",color:"#fca5a5",fontSize:14,cursor:"pointer",fontWeight:600}}>Export CSV</button>
         </CW>
@@ -3470,8 +3487,8 @@ function AboutPage(){
     {name:"Voteview (UCLA)",desc:"Per-member voting records on every roll call vote. Includes DW-NOMINATE ideology scores.",url:"https://voteview.com/data",refresh:"Weekly via GitHub Actions cron",status:"244,446 individual votes across 426 members"},
   ];
   return(
-    <div style={{background:"#020617",minHeight:"100vh",paddingBottom:60}}>
-      <div style={{background:"linear-gradient(135deg,#1e1b4b,#1e293b)",borderBottom:"1px solid rgba(99,102,241,.12)",padding:"40px 0"}}>
+    <div style={{background:"#09090b",minHeight:"100vh",paddingBottom:60}}>
+      <div style={{background:"linear-gradient(135deg,#18181b,#27272a)",borderBottom:"1px solid rgba(99,102,241,.12)",padding:"40px 0"}}>
         <CW>
           <h1 style={{fontSize:m?28:36,fontWeight:900,color:"#fff",margin:"0 0 12px",letterSpacing:-1}}>About Officium</h1>
           <p style={{fontSize:16,color:"rgba(255,255,255,.5)",lineHeight:1.7,maxWidth:700}}>Officium (Latin for "duty") is a free, open-source platform that aggregates public government data to promote congressional transparency. We are non-partisan and do not accept donations from political organizations.</p>
@@ -3582,8 +3599,8 @@ function DonorExplorer({pols,onSelect}){
   },[pols,q,mode]);
   const results=mode==="industry"?industryResults:mode==="state"?stateResults:mode==="party"?partyResults:nameResults;
   return(
-    <div style={{background:"#020617",minHeight:"100vh",paddingBottom:60}}>
-      <div style={{background:"linear-gradient(135deg,#1e1b4b,#1e293b)",borderBottom:"1px solid rgba(99,102,241,.12)",padding:"28px 0 24px"}}>
+    <div style={{background:"#09090b",minHeight:"100vh",paddingBottom:60}}>
+      <div style={{background:"linear-gradient(135deg,#18181b,#27272a)",borderBottom:"1px solid rgba(99,102,241,.12)",padding:"28px 0 24px"}}>
         <CW>
           <h1 style={{fontSize:m?24:32,fontWeight:900,color:"#fff",margin:"0 0 8px",letterSpacing:-1}}>Donor & Industry Explorer</h1>
           <p style={{fontSize:14,color:"rgba(255,255,255,.35)",margin:"0 0 20px"}}>Search campaign finance data by industry, state, party, or official name. All data from FEC.</p>
@@ -3642,9 +3659,9 @@ export default function App(){
   const onAuth=async u=>{setUser(u);if(!u){nav("home");return;}nav(u.role==="admin"?"admin":"dashboard");};
   const onLogout=async()=>{await clearSession();setUser(null);nav("home");};
   const violations=useMemo(()=>trades.filter(t=>t.gap>45).length,[trades]);
-  if(sessLoading)return <div style={{minHeight:"100vh",background:"#020617",display:"flex",alignItems:"center",justifyContent:"center"}}><Spin sz={32}/></div>;
+  if(sessLoading)return <div style={{minHeight:"100vh",background:"#09090b",display:"flex",alignItems:"center",justifyContent:"center"}}><Spin sz={32}/></div>;
   return(
-    <div style={{display:"flex",flexDirection:"column",minHeight:"100vh",overflowX:"hidden",background:"#020617"}}>
+    <div style={{display:"flex",flexDirection:"column",minHeight:"100vh",overflowX:"hidden",background:"#09090b"}}>
       <ApiBar/>
       {page!=="auth"&&<Nav page={page} onNav={nav} user={user} onLogout={onLogout} pols={pols} violations={violations} onSelect={goSel}/>}
       {page!=="home"&&page!=="auth"&&(
