@@ -163,6 +163,56 @@ function computePowerIndex(pol, tradeCount) {
   return Math.min(100, pi);
 }
 
+function computeAccountabilityScore(pol, trades) {
+  // BRD §13: Composite 0-100 score
+  // Component 1: Donor Alignment (25%) — how much PAC $ vs individual
+  const pacRatio = pol.raised > 0 ? (pol.pacContrib || 0) / pol.raised : 0;
+  const donorScore = Math.round((1 - pacRatio) * 25); // Higher = more individual-funded = better
+
+  // Component 2: Party Independence (15%) — ideology distance from party median
+  const partyMedian = pol.party === "D" ? -0.35 : pol.party === "R" ? 0.45 : 0;
+  const ideologyDist = pol.ideology != null ? Math.abs(pol.ideology - partyMedian) : 0;
+  const independenceScore = Math.round(Math.min(15, ideologyDist * 30));
+
+  // Component 3: Voting Participation (20%) — replaces Voter Representation (needs polling data)
+  const participationRate = pol.totalVotes > 0 ? 1 - (pol.absentCount / pol.totalVotes) : 0.5;
+  const participationScore = Math.round(participationRate * 20);
+
+  // Component 4: Financial Transparency (20%) — replaces Promise Fulfillment (needs promise data)
+  const tradeCount = (trades || []).filter(t => {
+    const ln = (t.name || "").toLowerCase().split(/\s+/).pop();
+    return ln.length >= 3 && pol.name.toLowerCase().endsWith(ln);
+  }).length;
+  const hasTimely = tradeCount > 0; // They at least file disclosures
+  const gapAvg = tradeCount > 0 ? (trades || []).filter(t => {
+    const ln = (t.name || "").toLowerCase().split(/\s+/).pop();
+    return ln.length >= 3 && pol.name.toLowerCase().endsWith(ln);
+  }).reduce((a, t) => a + (t.gap || 0), 0) / tradeCount : 0;
+  const transparencyScore = tradeCount === 0 ? 10 : gapAvg <= 45 ? 20 : gapAvg <= 90 ? 10 : 0;
+
+  // Component 5: Trading Pattern (5%) — do they trade in sectors they legislate on?
+  const tradingScore = tradeCount === 0 ? 5 : tradeCount > 20 ? 0 : 3;
+
+  // Component 6: Dark Money Exposure (5%) — ratio of PAC to total
+  const darkMoneyScore = pacRatio < 0.2 ? 5 : pacRatio < 0.5 ? 3 : 0;
+
+  // Component 7: Committee Conflict (10%) — placeholder until we have committee assignment data
+  const committeeScore = 5; // Neutral default
+
+  return {
+    total: donorScore + independenceScore + participationScore + transparencyScore + tradingScore + darkMoneyScore + committeeScore,
+    components: [
+      { label: "Donor Independence", score: donorScore, max: 25 },
+      { label: "Party Independence", score: independenceScore, max: 15 },
+      { label: "Voting Participation", score: participationScore, max: 20 },
+      { label: "Financial Transparency", score: transparencyScore, max: 20 },
+      { label: "Committee Conflict", score: committeeScore, max: 10 },
+      { label: "Dark Money Exposure", score: darkMoneyScore, max: 5 },
+      { label: "Trading Pattern", score: tradingScore, max: 5 },
+    ]
+  };
+}
+
 /* ── S3 DATA ──────────────────────────── */
 /* House Stock Watcher S3 is permanently offline (403). No free alternative exists. */
 const HOUSE_P=Promise.resolve([]);
@@ -1551,7 +1601,7 @@ function ProfilePage({pol,pols,allTrades,onSelect,onBack,user,onSetUser}){
     const tStr=trades.slice(0,8).map(t=>`- ${t.ticker||"N/A"} ${t.action} ${t.amount} (${t.gap}d gap) ${t.tradeDate}`).join("\n");
     const disbStr=disbursements.slice(0,5).map(d=>`- ${d.recipient_name||"?"}: ${fmt(d.disbursement_amount||0)} (${d.disbursement_description||"--"})`).join("\n");
     const ieStr=scheduleE.slice(0,4).map(e=>`- ${e.committee_name||"?"}: ${fmt(e.expenditure_amount||0)} ${e.support_oppose_indicator==="S"?"FOR":"AGAINST"}`).join("\n");
-    try{const r=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:900,messages:[{role:"user",content:`Congressional intelligence briefing for ${pol.name} (${PL[pol.party]}, ${pol.chamber}, ${pol.state})\n\nFEC FINANCE:\nRaised: ${fmt(raised)} | Spent: ${fmt(spent)} | Cash: ${fmt(cash)}\n\nTOP DISBURSEMENTS (Schedule B - where they spend):\n${disbStr||"No data"}\n\nINDEPENDENT EXPENDITURES (Schedule E - outside groups):\n${ieStr||"No data"}\n\nSTOCK ACT: ${trades.length} trades, ${violations} violations\n${tStr||"None"}\n\nProvide:\nFINANCIAL_PROFILE: [campaign finance + spending pattern analysis]\nTRADING_ANALYSIS: [STOCK Act behavior]\nOUTSIDE_MONEY: [who is spending to help/hurt them via Schedule E]\nTRANSPARENCY_GRADE: [A-F]\nINVESTIGATION_PRIORITIES: [2-3 angles]\n\nFacts only.`}]})});const j=await r.json();setAI(j.content&&j.content.map(b=>b.text||"").join("")||"");}catch(e){setAIE(e.message);}
+    try{const r=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:900,messages:[{role:"user",content:`Congressional intelligence briefing for ${pol.name} (${PL[pol.party]}, ${pol.chamber}, ${pol.state})\n\nFEC FINANCE:\nRaised: ${fmt(raised)} | Spent: ${fmt(spent)} | Cash: ${fmt(cash)}\n\nTOP DISBURSEMENTS (Schedule B - where they spend):\n${disbStr||"No data"}\n\nINDEPENDENT EXPENDITURES (Schedule E - outside groups):\n${ieStr||"No data"}\n\nSTOCK ACT: ${trades.length} trades, ${violations} violations\n${tStr||"None"}\n\nVoting record: ${pol.totalVotes} total votes, ${pol.yeaPct}% Yea, ${pol.absentCount} absent. Ideology score: ${pol.ideology!=null?pol.ideology.toFixed(2):"N/A"} (DW-NOMINATE, -1=liberal +1=conservative).\nAccountability Score: ${computeAccountabilityScore(pol, trades).total}/100.\n\nProvide:\nFINANCIAL_PROFILE: [campaign finance + spending pattern analysis]\nTRADING_ANALYSIS: [STOCK Act behavior]\nOUTSIDE_MONEY: [who is spending to help/hurt them via Schedule E]\nVIOLATION_ASSESSMENT: [legal exposure; if clean, confirm compliance]\nTRANSPARENCY_GRADE: [A-F]\nINVESTIGATION_PRIORITIES: [2-3 angles]\n\nFacts only.`}]})});const j=await r.json();setAI(j.content&&j.content.map(b=>b.text||"").join("")||"");}catch(e){setAIE(e.message);}
     setAIL(false);
   };
   const sec=(t,k)=>{const m=t.match(new RegExp(k+":[ \t]*(.+?)(?=\n[A-Z_]+:|$)","s"));return m?m[1].trim():null;};
@@ -1718,6 +1768,25 @@ function ProfilePage({pol,pols,allTrades,onSelect,onBack,user,onSetUser}){
                 ))}
               </div>
             </div>
+            {/* Dark Money Exposure Indicator — BRD §19 */}
+            {pol.hasRealFinancials&&<div style={{marginTop:20}}>
+              <div style={{fontWeight:700,fontSize:15,color:"#fff",marginBottom:14}}>Funding Transparency</div>
+              <div style={{display:"grid",gridTemplateColumns:m?"1fr":"1fr 1fr 1fr",gap:12}}>
+                <div style={{background:(pol.individualContrib||0)/(pol.raised||1)>0.5?"rgba(34,197,94,.06)":"rgba(239,68,68,.06)",border:"1px solid "+((pol.individualContrib||0)/(pol.raised||1)>0.5?"rgba(34,197,94,.15)":"rgba(239,68,68,.15)"),borderRadius:12,padding:16,textAlign:"center"}}>
+                  <div style={{fontSize:24,fontWeight:900,color:(pol.individualContrib||0)/(pol.raised||1)>0.5?"#4ade80":"#ef4444"}}>{pol.raised>0?Math.round(((pol.individualContrib||0)/pol.raised)*100):0}%</div>
+                  <div style={{fontSize:12,color:"rgba(255,255,255,.3)"}}>Individual Donors</div>
+                </div>
+                <div style={{background:"rgba(245,158,11,.06)",border:"1px solid rgba(245,158,11,.15)",borderRadius:12,padding:16,textAlign:"center"}}>
+                  <div style={{fontSize:24,fontWeight:900,color:"#fbbf24"}}>{pol.raised>0?Math.round(((pol.pacContrib||0)/pol.raised)*100):0}%</div>
+                  <div style={{fontSize:12,color:"rgba(255,255,255,.3)"}}>PAC / Committee</div>
+                </div>
+                <div style={{background:"rgba(168,85,247,.06)",border:"1px solid rgba(168,85,247,.15)",borderRadius:12,padding:16,textAlign:"center"}}>
+                  <div style={{fontSize:24,fontWeight:900,color:"#a78bfa"}}>{pol.raised>0?Math.round(((pol.transfers||0)/pol.raised)*100):0}%</div>
+                  <div style={{fontSize:12,color:"rgba(255,255,255,.3)"}}>Transfers (PAC Pipeline)</div>
+                </div>
+              </div>
+              <div style={{fontSize:12,color:"rgba(255,255,255,.15)",marginTop:8,fontStyle:"italic"}}>Funding visibility ratio: {pol.raised>0?Math.round(((pol.individualContrib||0)/pol.raised)*100):0}% traceable to named individuals.</div>
+            </div>}
             {/* Sector Conflict Check */}
             {trades.length>0&&pol.hasRealFinancials&&<div style={{marginTop:20}}>
               <div style={{fontWeight:700,fontSize:15,color:"#fff",marginBottom:14}}>Sector Overlap Analysis</div>
@@ -1758,19 +1827,19 @@ function ProfilePage({pol,pols,allTrades,onSelect,onBack,user,onSetUser}){
                   ))}
                 </div>
                 <div style={{background:"rgba(255,255,255,.03)",border:"1px solid rgba(255,255,255,.06)",borderRadius:12,padding:18}}>
-                  <div style={{fontSize:13,fontWeight:700,color:"#f59e0b",marginBottom:12}}>Power Index</div>
-                  {(()=>{const tc=(trades||[]).length;const pi=computePowerIndex(pol,tc);const piColor=pi>70?"#ef4444":pi>40?"#f59e0b":"#10b981";return(<>
-                    <div style={{fontSize:48,fontWeight:900,color:piColor,textAlign:"center",marginBottom:8}}>{pi}</div>
-                    <div style={{fontSize:12,color:"rgba(255,255,255,.3)",textAlign:"center",marginBottom:14}}>out of 100 — {pi>70?"High Influence":pi>40?"Moderate Influence":"Low Profile"}</div>
+                  {(()=>{const as=computeAccountabilityScore(pol,trades);const color=as.total>70?"#4ade80":as.total>40?"#fbbf24":"#ef4444";return(<>
+                    <div style={{fontSize:48,fontWeight:900,color,textAlign:"center",marginBottom:4}}>{as.total}</div>
+                    <div style={{fontSize:13,color:"rgba(255,255,255,.3)",textAlign:"center",marginBottom:14}}>Accountability Score (0-100)</div>
                     <div style={{display:"flex",flexDirection:"column",gap:6}}>
-                      {[["Fundraising",Math.min(25,Math.round(((pol.raised||0)/50e6)*25)),25,"#10b981"],["Trade Activity",Math.min(20,tc*2),20,"#a78bfa"],["PAC Influence",Math.min(20,pol.raised>0?Math.round(((pol.pacContrib||0)/pol.raised)*20):0),20,"#f59e0b"],["Tenure",Math.min(20,Math.round(((pol.yearsInOffice||0)/30)*20)),20,"#6366f1"],["Financial Pressure",Math.min(15,(pol.debts||0)>100000?15:Math.round(((pol.debts||0)/100000)*15)),15,"#ef4444"]].map(([label,score,max,color])=>(
-                        <div key={label} style={{display:"flex",alignItems:"center",gap:8}}>
-                          <div style={{width:100,fontSize:12,color:"rgba(255,255,255,.4)"}}>{label}</div>
-                          <div style={{flex:1,height:6,borderRadius:3,background:"rgba(255,255,255,.06)",overflow:"hidden"}}><div style={{height:"100%",width:((score/max)*100)+"%",background:color,borderRadius:3}}/></div>
-                          <div style={{width:30,fontSize:12,fontWeight:700,color,textAlign:"right"}}>{score}</div>
+                      {as.components.map(c=>(
+                        <div key={c.label} style={{display:"flex",alignItems:"center",gap:8}}>
+                          <div style={{width:130,fontSize:12,color:"rgba(255,255,255,.4)"}}>{c.label}</div>
+                          <div style={{flex:1,height:6,borderRadius:3,background:"rgba(255,255,255,.06)",overflow:"hidden"}}><div style={{height:"100%",width:((c.score/c.max)*100)+"%",background:c.score/c.max>0.6?"#4ade80":c.score/c.max>0.3?"#fbbf24":"#ef4444",borderRadius:3}}/></div>
+                          <div style={{width:40,fontSize:12,fontWeight:700,color:"rgba(255,255,255,.5)",textAlign:"right"}}>{c.score}/{c.max}</div>
                         </div>
                       ))}
                     </div>
+                    <div style={{fontSize:12,color:"rgba(255,255,255,.15)",marginTop:10,fontStyle:"italic"}}>Methodology: officium.vote/about · v1 pending academic validation</div>
                   </>);})()}
                 </div>
               </div>
@@ -1911,6 +1980,37 @@ function ProfilePage({pol,pols,allTrades,onSelect,onBack,user,onSetUser}){
                 {!fecId&&<div style={{fontSize:12,color:"rgba(255,255,255,.2)"}}>FEC endpoints require a matched candidate ID. Try searching for this official directly at fec.gov.</div>}
               </div>
             )}
+            {/* Donation vs Vote Correlation — BRD §15 */}
+            {pol.totalVotes>0&&pol.raised>0&&<div style={{marginTop:20}}>
+              <div style={{fontWeight:700,fontSize:15,color:"#fff",marginBottom:14}}>Funding & Voting Pattern</div>
+              <div style={{background:"rgba(99,102,241,.04)",border:"1px solid rgba(99,102,241,.1)",borderRadius:14,padding:20}}>
+                <div style={{display:"grid",gridTemplateColumns:m?"1fr":"1fr 1fr",gap:16}}>
+                  <div>
+                    <div style={{fontSize:13,fontWeight:700,color:"#10b981",marginBottom:8}}>Campaign Funding</div>
+                    <div style={{fontSize:13,color:"rgba(255,255,255,.4)",lineHeight:1.6}}>
+                      Total raised: <strong style={{color:"#10b981"}}>{fmt(pol.raised)}</strong><br/>
+                      From individuals: <strong>{pol.individualContrib>0?fmt(pol.individualContrib):"N/A"}</strong><br/>
+                      From PACs: <strong>{pol.pacContrib>0?fmt(pol.pacContrib):"N/A"}</strong><br/>
+                      Individual ratio: <strong>{pol.raised>0?Math.round(((pol.individualContrib||0)/pol.raised)*100)+"%":"N/A"}</strong>
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{fontSize:13,fontWeight:700,color:"#6366f1",marginBottom:8}}>Voting Behavior</div>
+                    <div style={{fontSize:13,color:"rgba(255,255,255,.4)",lineHeight:1.6}}>
+                      Total votes cast: <strong style={{color:"#6366f1"}}>{pol.totalVotes}</strong><br/>
+                      Voted Yea: <strong>{pol.yeaPct}%</strong><br/>
+                      Missed votes: <strong>{pol.absentCount}</strong><br/>
+                      Ideology: <strong style={{color:pol.ideology<-0.3?"#3b82f6":pol.ideology>0.3?"#ef4444":"#94a3b8"}}>{pol.ideology!=null?pol.ideology.toFixed(2):"N/A"} ({pol.ideology<-0.3?"Liberal":pol.ideology>0.3?"Conservative":"Moderate"})</strong>
+                    </div>
+                  </div>
+                </div>
+                {pol.pacContrib>0&&pol.totalVotes>0&&<div style={{marginTop:14,padding:"12px 16px",background:"rgba(245,158,11,.04)",border:"1px solid rgba(245,158,11,.1)",borderRadius:10}}>
+                  <div style={{fontSize:13,fontWeight:700,color:"#fbbf24",marginBottom:4}}>Correlation Flag</div>
+                  <div style={{fontSize:13,color:"rgba(255,255,255,.35)"}}>This official received {fmt(pol.pacContrib)} from PACs ({Math.round((pol.pacContrib/pol.raised)*100)}% of total) while voting Yea {pol.yeaPct}% of the time. Compare with similar officials to assess alignment.</div>
+                </div>}
+                <Disclaimer/>
+              </div>
+            </div>}
           </div>
         )}
         {/* ── TRADES TAB ── */}
@@ -2696,6 +2796,7 @@ const STATES_ALL=["AL","AK","AZ","AR","CA","CO","CT","DE","FL","GA","HI","ID","I
 function BrowsePage({pols,trades,onSelect,user,onSetUser}){
   const[filters,setF]=useState({search:"",chamber:"All",party:"All",state:"",fecOnly:false,sort:"raised",hasViolations:false});const[pg,setPg]=useState(1);const PER=48;const m=mob();
   const tradeMap=useMemo(()=>{const m2={};(trades||[]).forEach(t=>{const ln=(t.name||"").toLowerCase().split(/\s+/).pop();const pol=pols.find(p=>p.name.toLowerCase().includes(ln)&&ln.length>3);if(pol){if(!m2[pol.id])m2[pol.id]={count:0,violations:0};m2[pol.id].count++;if(t.gap>45)m2[pol.id].violations++;}});return m2;},[trades.length,pols.length]);
+  const scoreMap=useMemo(()=>{const m={};pols.forEach(p=>{m[p.id]=computeAccountabilityScore(p,trades).total;});return m;},[pols,trades]);
   const toggleWatch=async(polId,e)=>{e.stopPropagation();if(!user)return;const wl=user.watchlist.includes(polId)?user.watchlist.filter(x=>x!==polId):[...user.watchlist,polId];const updated=await updateUser(user.id,{watchlist:wl});if(onSetUser)onSetUser(updated);};
   const filtered=useMemo(()=>{let f=pols;if(filters.search)f=f.filter(p=>p.name.toLowerCase().includes(filters.search.toLowerCase())||(p.state||"").toUpperCase()===filters.search.toUpperCase());if(filters.chamber!=="All")f=f.filter(p=>p.chamber===filters.chamber);if(filters.party!=="All")f=f.filter(p=>p.party===filters.party);if(filters.state)f=f.filter(p=>p.state===filters.state);if(filters.fecOnly)f=f.filter(p=>p.hasRealFinancials);if(filters.hasViolations)f=f.filter(p=>(tradeMap[p.id]&&tradeMap[p.id].violations>0));if(filters.sort==="raised")f=[...f].sort((a,b)=>b.raised-a.raised);else if(filters.sort==="cash")f=[...f].sort((a,b)=>b.cash-a.cash);else if(filters.sort==="trades")f=[...f].sort((a,b)=>((tradeMap[b.id]||{}).count||0)-((tradeMap[a.id]||{}).count||0));else if(filters.sort==="violations")f=[...f].sort((a,b)=>((tradeMap[b.id]||{}).violations||0)-((tradeMap[a.id]||{}).violations||0));else if(filters.sort==="risk")f=[...f].sort((a,b)=>{const aT=(trades||[]).filter(t=>(t.name||"").toLowerCase().includes(a.name.toLowerCase().split(/\s+/).pop()));const bT=(trades||[]).filter(t=>(t.name||"").toLowerCase().includes(b.name.toLowerCase().split(/\s+/).pop()));return calcRisk(bT,b.raised)-calcRisk(aT,a.raised);});else f=[...f].sort((a,b)=>a.name.localeCompare(b.name));return f;},[pols,filters,tradeMap]);
   const shown=filtered.slice((pg-1)*PER,pg*PER);const totalPgs=Math.ceil(filtered.length/PER);
@@ -2764,7 +2865,7 @@ function BrowsePage({pols,trades,onSelect,user,onSetUser}){
               <div style={{paddingTop:10,borderTop:"1px solid rgba(255,255,255,.04)",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                 <span style={{fontSize:12,color:"#a78bfa",fontWeight:700}}>View profile →</span>
                 <div style={{display:"flex",gap:5,alignItems:"center"}}>
-                  {(()=>{const pi=computePowerIndex(p,td.count||0);const piC=pi>70?"#ef4444":pi>40?"#f59e0b":"#10b981";return pi>0?<span style={{fontSize:12,background:piC+"15",color:piC,padding:"2px 6px",borderRadius:4,fontWeight:800,border:"1px solid "+piC+"22"}} title="Power Index">PI:{pi}</span>:null;})()}
+                  {scoreMap[p.id]!=null&&<span style={{fontSize:12,fontWeight:700,background:scoreMap[p.id]>60?"rgba(74,222,128,.1)":"rgba(251,191,36,.1)",color:scoreMap[p.id]>60?"#4ade80":"#fbbf24",padding:"2px 8px",borderRadius:6,border:"1px solid "+(scoreMap[p.id]>60?"rgba(74,222,128,.2)":"rgba(251,191,36,.2)")}} title="Accountability Score">{scoreMap[p.id]}/100</span>}
                   {p.hasRealFinancials&&<span style={{fontSize:12,background:"rgba(16,185,129,.08)",color:"#10b981",padding:"2px 6px",borderRadius:4,fontWeight:700,border:"1px solid rgba(16,185,129,.15)"}}>FEC</span>}
                   {td.violations>0&&<span style={{fontSize:12,background:"rgba(239,68,68,.1)",color:"#f87171",padding:"2px 6px",borderRadius:4,fontWeight:800,border:"1px solid rgba(239,68,68,.2)"}}>VIOLATION</span>}
                 </div>
