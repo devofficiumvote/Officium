@@ -2,9 +2,11 @@ name: Fetch FARA Data
 
 on:
   schedule:
-    # Weekly on Monday at 6:00 AM UTC
     - cron: '0 6 * * 1'
-  workflow_dispatch: # Allow manual trigger
+  workflow_dispatch:
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   fetch-fara:
@@ -19,7 +21,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
 
       - name: Fetch FARA data
         run: node scripts/fetch-fara.mjs

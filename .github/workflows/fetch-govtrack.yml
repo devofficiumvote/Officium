@@ -1,0 +1,32 @@
+name: Fetch GovTrack Data
+
+on:
+  schedule:
+    - cron: '0 8 * * 2'  # Tuesdays at 8am UTC
+  workflow_dispatch:
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  fetch-govtrack:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node scripts/fetch-govtrack.mjs
+      - name: Check for changes
+        id: changes
+        run: git diff --quiet public/data/govtrack-*.json && echo "changed=false" >> $GITHUB_OUTPUT || echo "changed=true" >> $GITHUB_OUTPUT
+      - name: Commit
+        if: steps.changes.outputs.changed == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add public/data/govtrack-members.json public/data/govtrack-votes.json
+          git commit -m "chore: update GovTrack data $(date -u +%Y-%m-%d)"
+          git push

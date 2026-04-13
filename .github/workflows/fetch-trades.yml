@@ -1,0 +1,34 @@
+name: Fetch Trade Data
+
+on:
+  schedule:
+    - cron: '0 12 * * *'  # Daily at noon UTC
+  workflow_dispatch:
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  fetch-trades:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node scripts/fetch-trades.mjs
+        env:
+          FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
+      - name: Check for changes
+        id: changes
+        run: git diff --quiet public/data/congress-trades.json && echo "changed=false" >> $GITHUB_OUTPUT || echo "changed=true" >> $GITHUB_OUTPUT
+      - name: Commit
+        if: steps.changes.outputs.changed == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add public/data/congress-trades.json
+          git commit -m "chore: update trade data $(date -u +%Y-%m-%d)"
+          git push
