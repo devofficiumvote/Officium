@@ -490,7 +490,7 @@ function detectChamber(m){
   return"House";
 }
 async function loadMembers(onUp){
-  return withCache("members_v20",async()=>{
+  return withCache("members_v22",async()=>{
     const NICK={"Bernard Sanders":"Bernie Sanders","Angus S. King":"Angus King","Charles E. Schumer":"Chuck Schumer"};
     /* Congress.gov chamber filter is broken — fetch all members and detect chamber from terms data */
     let all=[],offset=0;
@@ -520,7 +520,7 @@ if(!fr)fr=lookupFEC(name,st,fd);
 if(!fr)fr=lookupFEC(stripAccents(name),st,fd);
 const gtInfo=gt[m.bioguideId]||{};
 const vvInfo=vv[m.bioguideId]||{};
-return{id:"a"+i,name,party,chamber:ch2,state:st,district:m.district||null,yearsInOffice:m.terms&&m.terms.item&&m.terms.item[0]?(2026-(m.terms.item[0].startYear||2026)):0,bioguideId:m.bioguideId||null,photo:fixPhotoUrl(m),initials:name.split(" ").map(x=>x[0]).filter(Boolean).join("").slice(0,2).toUpperCase(),raised:(fr&&fr.receipts)||0,spent:(fr&&fr.disbursements)||0,cash:(fr&&fr.cash_on_hand_end_period)||0,debts:(fr&&fr.debts_owed_by_committee)||0,individualContrib:(fr&&fr.individual_itemized_contributions)||0,pacContrib:(fr&&fr.other_political_committee_contributions)||0,incumbentStatus:(fr&&fr.incumbent_challenge_full)||"",transfers:(fr&&fr.transfers_from_other_authorized_committee)||0,fecCycles:(fr&&fr.cycles)||[],firstFiled:(fr&&fr.first_file_date)||null,lastFiled:(fr&&fr.last_file_date)||null,coverageStart:(fr&&fr.coverage_start_date)||null,coverageEnd:(fr&&fr.coverage_end_date)||null,hasRealFinancials:!!fr,fecId:(fr&&fr.candidate_id)||null,fecUrl:fr&&fr.candidate_id?"https://www.fec.gov/data/candidate/"+fr.candidate_id+"/":"",congressUrl:"https://www.congress.gov/member/"+name.toLowerCase().replace(/[^a-z\s]/g,"").trim().replace(/\s+/g,"-")+"/"+(m.bioguideId||""),phone:gtInfo.phone||null,website:gtInfo.website||null,office:gtInfo.office||null,contactForm:gtInfo.contactForm||null,twitter:gtInfo.twitter||null,gender:gtInfo.gender||null,senatorRank:gtInfo.senatorRank||null,leadership:gtInfo.leadership||null,govtrackDesc:gtInfo.description||"",ideology:vvInfo.info?.nominate1||null,totalVotes:vvInfo.totalVotes||0,yeaPct:vvInfo.yeaPct||0,absentCount:vvInfo.absentCount||0};}).filter(p=>p.name.length>2);
+return{id:"a"+i,name,party,chamber:ch2,state:st,district:m.district||gtInfo.district||null,yearsInOffice:m.terms&&m.terms.item&&m.terms.item[0]?(2026-(m.terms.item[0].startYear||2026)):0,bioguideId:m.bioguideId||null,photo:fixPhotoUrl(m),initials:name.split(" ").map(x=>x[0]).filter(Boolean).join("").slice(0,2).toUpperCase(),raised:(fr&&fr.receipts)||0,spent:(fr&&fr.disbursements)||0,cash:(fr&&fr.cash_on_hand_end_period)||0,debts:(fr&&fr.debts_owed_by_committee)||0,individualContrib:(fr&&fr.individual_itemized_contributions)||0,pacContrib:(fr&&fr.other_political_committee_contributions)||0,incumbentStatus:(fr&&fr.incumbent_challenge_full)||"",transfers:(fr&&fr.transfers_from_other_authorized_committee)||0,fecCycles:(fr&&fr.cycles)||[],firstFiled:(fr&&fr.first_file_date)||null,lastFiled:(fr&&fr.last_file_date)||null,coverageStart:(fr&&fr.coverage_start_date)||null,coverageEnd:(fr&&fr.coverage_end_date)||null,hasRealFinancials:!!fr,fecId:(fr&&fr.candidate_id)||null,fecUrl:fr&&fr.candidate_id?"https://www.fec.gov/data/candidate/"+fr.candidate_id+"/":"",congressUrl:"https://www.congress.gov/member/"+name.toLowerCase().replace(/[^a-z\s]/g,"").trim().replace(/\s+/g,"-")+"/"+(m.bioguideId||""),phone:gtInfo.phone||null,website:gtInfo.website||null,office:gtInfo.office||null,contactForm:gtInfo.contactForm||null,twitter:gtInfo.twitter||null,gender:gtInfo.gender||null,senatorRank:gtInfo.senatorRank||null,leadership:gtInfo.leadership||null,govtrackDesc:gtInfo.description||"",ideology:vvInfo.info?.nominate1||null,totalVotes:vvInfo.totalVotes||0,yeaPct:vvInfo.yeaPct||0,absentCount:vvInfo.absentCount||0};}).filter(p=>p.name.length>2);
     const matched=initial.filter(p=>p.hasRealFinancials).length;
     console.log(`FEC initial match: ${matched}/${initial.length}`);
     /* Second pass: individually fetch unmatched members via FEC candidate search */
@@ -3134,7 +3134,7 @@ function BrowsePage({pols,trades,onSelect,user,onSetUser}){
                   <div style={{fontWeight:800,fontSize:14,color:"#fff",marginBottom:5,lineHeight:1.2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.name}</div>
                   <div style={{display:"flex",gap:5,alignItems:"center",flexWrap:"wrap"}}>
                     <span style={{fontSize:12,fontWeight:700,padding:"2px 8px",borderRadius:4,background:PC[p.party]+"15",color:PC[p.party],border:"1px solid "+PC[p.party]+"22"}}>{PL[p.party]}</span>
-                    <span style={{fontSize:12,color:"rgba(255,255,255,.3)",fontWeight:600}}>{p.chamber} · {p.state}</span>
+                    <span style={{fontSize:12,color:"rgba(255,255,255,.3)",fontWeight:600}}>{p.chamber}{p.district?" · District "+p.district:""} · {p.state}</span>
                   </div>
                   <div style={{fontSize:12,color:"rgba(255,255,255,.25)",marginTop:4,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.raised>10e6?`Top fundraiser \u00b7 ${fmt(p.raised)}`:p.raised>1e6?`${fmt(p.raised)} raised this cycle`:(td.count||0)>5?`${td.count} stock trades disclosed`:`${p.chamber} \u00b7 ${p.state}`}</div>
                 </div>
