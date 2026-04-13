@@ -442,7 +442,7 @@ async function fetchByName(name,state,ch){
 }
 
 /* ── CONGRESS ─────────────────────────── */
-async function fetchBills(bid){if(!bid)return[];const k="b_"+bid;const c=gc(k);if(c)return c;try{const d=await fetch(`https://api.congress.gov/v3/member/${bid}/sponsoredLegislation?limit=12&format=json&api_key=${CGK}`,{signal:AbortSignal.timeout(10000)}).then(r=>r.json());const r=d.sponsoredLegislation||[];sc(k,r);return r;}catch(e){return[];}}
+async function fetchBills(bid){if(!bid)return[];const k="b2_"+bid;const c=gc(k);if(c)return c;try{const d=await fetch(`https://api.congress.gov/v3/member/${bid}/sponsored-legislation?limit=20&format=json&api_key=${CGK}`,{signal:AbortSignal.timeout(10000)}).then(r=>r.json());const r=d.sponsoredLegislation||[];sc(k,r);return r;}catch(e){return[];}}
 const RECENT_BILLS=withCache("rb_v4",async()=>{const[h,s]=await Promise.all([fetch(`https://api.congress.gov/v3/bill?limit=20&sort=updateDate+desc&billType=hr&format=json&api_key=${CGK}`,{signal:AbortSignal.timeout(12000)}).then(r=>r.json()).catch(()=>null),fetch(`https://api.congress.gov/v3/bill?limit=20&sort=updateDate+desc&billType=s&format=json&api_key=${CGK}`,{signal:AbortSignal.timeout(12000)}).then(r=>r.json()).catch(()=>null)]);return{hr:(h&&h.bills)||[],s:(s&&s.bills)||[]};});
 const LDA_P=withCache("lda_v9",async()=>{
   /* Try new lda.gov first, then legacy lda.senate.gov, via CORS proxy */
@@ -520,7 +520,7 @@ if(!fr)fr=lookupFEC(name,st,fd);
 if(!fr)fr=lookupFEC(stripAccents(name),st,fd);
 const gtInfo=gt[m.bioguideId]||{};
 const vvInfo=vv[m.bioguideId]||{};
-return{id:"a"+i,name,party,chamber:ch2,state:st,yearsInOffice:m.terms&&m.terms.item&&m.terms.item[0]?(2026-(m.terms.item[0].startYear||2026)):0,bioguideId:m.bioguideId||null,photo:fixPhotoUrl(m),initials:name.split(" ").map(x=>x[0]).filter(Boolean).join("").slice(0,2).toUpperCase(),raised:(fr&&fr.receipts)||0,spent:(fr&&fr.disbursements)||0,cash:(fr&&fr.cash_on_hand_end_period)||0,debts:(fr&&fr.debts_owed_by_committee)||0,individualContrib:(fr&&fr.individual_itemized_contributions)||0,pacContrib:(fr&&fr.other_political_committee_contributions)||0,incumbentStatus:(fr&&fr.incumbent_challenge_full)||"",transfers:(fr&&fr.transfers_from_other_authorized_committee)||0,fecCycles:(fr&&fr.cycles)||[],firstFiled:(fr&&fr.first_file_date)||null,lastFiled:(fr&&fr.last_file_date)||null,coverageStart:(fr&&fr.coverage_start_date)||null,coverageEnd:(fr&&fr.coverage_end_date)||null,hasRealFinancials:!!fr,fecId:(fr&&fr.candidate_id)||null,fecUrl:fr&&fr.candidate_id?"https://www.fec.gov/data/candidate/"+fr.candidate_id+"/":"",congressUrl:"https://www.congress.gov/member/"+name.toLowerCase().replace(/[^a-z\s]/g,"").trim().replace(/\s+/g,"-")+"/"+(m.bioguideId||""),phone:gtInfo.phone||null,website:gtInfo.website||null,office:gtInfo.office||null,contactForm:gtInfo.contactForm||null,twitter:gtInfo.twitter||null,gender:gtInfo.gender||null,senatorRank:gtInfo.senatorRank||null,leadership:gtInfo.leadership||null,govtrackDesc:gtInfo.description||"",ideology:vvInfo.info?.nominate1||null,totalVotes:vvInfo.totalVotes||0,yeaPct:vvInfo.yeaPct||0,absentCount:vvInfo.absentCount||0};}).filter(p=>p.name.length>2);
+return{id:"a"+i,name,party,chamber:ch2,state:st,district:m.district||null,yearsInOffice:m.terms&&m.terms.item&&m.terms.item[0]?(2026-(m.terms.item[0].startYear||2026)):0,bioguideId:m.bioguideId||null,photo:fixPhotoUrl(m),initials:name.split(" ").map(x=>x[0]).filter(Boolean).join("").slice(0,2).toUpperCase(),raised:(fr&&fr.receipts)||0,spent:(fr&&fr.disbursements)||0,cash:(fr&&fr.cash_on_hand_end_period)||0,debts:(fr&&fr.debts_owed_by_committee)||0,individualContrib:(fr&&fr.individual_itemized_contributions)||0,pacContrib:(fr&&fr.other_political_committee_contributions)||0,incumbentStatus:(fr&&fr.incumbent_challenge_full)||"",transfers:(fr&&fr.transfers_from_other_authorized_committee)||0,fecCycles:(fr&&fr.cycles)||[],firstFiled:(fr&&fr.first_file_date)||null,lastFiled:(fr&&fr.last_file_date)||null,coverageStart:(fr&&fr.coverage_start_date)||null,coverageEnd:(fr&&fr.coverage_end_date)||null,hasRealFinancials:!!fr,fecId:(fr&&fr.candidate_id)||null,fecUrl:fr&&fr.candidate_id?"https://www.fec.gov/data/candidate/"+fr.candidate_id+"/":"",congressUrl:"https://www.congress.gov/member/"+name.toLowerCase().replace(/[^a-z\s]/g,"").trim().replace(/\s+/g,"-")+"/"+(m.bioguideId||""),phone:gtInfo.phone||null,website:gtInfo.website||null,office:gtInfo.office||null,contactForm:gtInfo.contactForm||null,twitter:gtInfo.twitter||null,gender:gtInfo.gender||null,senatorRank:gtInfo.senatorRank||null,leadership:gtInfo.leadership||null,govtrackDesc:gtInfo.description||"",ideology:vvInfo.info?.nominate1||null,totalVotes:vvInfo.totalVotes||0,yeaPct:vvInfo.yeaPct||0,absentCount:vvInfo.absentCount||0};}).filter(p=>p.name.length>2);
     const matched=initial.filter(p=>p.hasRealFinancials).length;
     console.log(`FEC initial match: ${matched}/${initial.length}`);
     /* Second pass: individually fetch unmatched members via FEC candidate search */
@@ -1523,6 +1523,7 @@ function IntelFeed({trades,pols}){
                   <div style={{fontSize:12,fontWeight:600,color:"rgba(255,255,255,.7)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.name}</div>
                   <div style={{fontSize:12,color:"rgba(255,255,255,.28)",marginTop:3}}>{t.amount} · {t.source}</div>
                   {t.excessReturn!=null&&<div style={{fontSize:12,color:t.excessReturn>0?"#4ade80":"#f87171",fontWeight:600}}>{t.excessReturn>0?"+":""}{Math.round(t.excessReturn*100)/100}% vs S&P 500</div>}
+                  {(()=>{const f=flagTrade(t);return f?<div style={{fontSize:12,color:f.color,marginTop:4,lineHeight:1.4}}>{f.badge}: {f.txt.split('.')[0]}.</div>:null;})()}
                   {t.description&&<div style={{fontSize:12,color:"rgba(255,255,255,.2)",marginTop:3,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",fontStyle:"italic"}}>{t.description.slice(0,60)}</div>}
                 </div>
               ))}
@@ -1541,6 +1542,7 @@ function IntelFeed({trades,pols}){
                   <div style={{fontSize:12,fontWeight:600,color:"rgba(255,255,255,.7)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.name}</div>
                   <div style={{fontSize:12,color:"rgba(255,255,255,.28)",marginTop:3}}>{t.amount} · {t.source}</div>
                   {t.excessReturn!=null&&<div style={{fontSize:12,color:t.excessReturn>0?"#4ade80":"#f87171",fontWeight:600}}>{t.excessReturn>0?"+":""}{Math.round(t.excessReturn*100)/100}% vs S&P 500</div>}
+                  {(()=>{const f=flagTrade(t);return f?<div style={{fontSize:12,color:f.color,marginTop:4,lineHeight:1.4}}>{f.badge}: {f.txt.split('.')[0]}.</div>:null;})()}
                   {t.description&&<div style={{fontSize:12,color:"rgba(255,255,255,.2)",marginTop:3,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",fontStyle:"italic"}}>{t.description.slice(0,60)}</div>}
                 </div>
               ))}
@@ -2195,6 +2197,23 @@ function ProfilePage({pol,pols,allTrades,onSelect,onBack,user,onSetUser}){
           <div style={{fontWeight:700,fontSize:16,color:"#fff",marginBottom:14}}>Lobbying & Foreign Influence</div>
           <p style={{fontSize:13,color:"rgba(255,255,255,.35)",marginBottom:20}}>Lobbying activity targeting {pol.chamber==="Senate"?"the Senate":"the House"} from {pol.state}. Data from LDA.gov and FARA.</p>
           <LobbyingPanel pol={pol}/>
+          {trades.length>0&&<div style={{marginTop:20}}>
+            <div style={{fontWeight:700,fontSize:15,color:"#fff",marginBottom:14}}>Lobbying ↔ Trading Cross-Reference</div>
+            {(()=>{
+              const tradeSectors=new Set((trades||[]).map(t=>classifyTicker(t.ticker)).filter(s=>s!=="Other"));
+              if(!tradeSectors.size)return <div style={{fontSize:13,color:"rgba(255,255,255,.25)"}}>No sector-classified trades to cross-reference.</div>;
+              const sectorToLobbyIssue={"Technology":"Computer Industry","Defense":"Defense","Energy":"Energy/Nuclear","Finance":"Financial Institutions/Investments/Securities","Pharma":"Health Issues","Healthcare":"Health Issues"};
+              const matchedIssues=[...tradeSectors].map(s=>sectorToLobbyIssue[s]).filter(Boolean);
+              return(<div style={{background:"rgba(245,158,11,.04)",border:"1px solid rgba(245,158,11,.1)",borderRadius:12,padding:16}}>
+                <div style={{fontSize:13,color:"rgba(255,255,255,.4)",lineHeight:1.7}}>
+                  {pol.name.split(" ").pop()} trades in: <strong style={{color:"#e2e8f0"}}>{[...tradeSectors].join(", ")}</strong>
+                  {matchedIssues.length>0&&<><br/>Related lobbying issue areas: <strong style={{color:"#fbbf24"}}>{matchedIssues.join(", ")}</strong><br/>
+                  Check the lobbying filings above for activity in these sectors. When lobbying targets overlap with an official's trading sectors, it warrants additional scrutiny.</>}
+                </div>
+                <Disclaimer/>
+              </div>);
+            })()}
+          </div>}
           <Disclaimer/>
         </div>}
         {/* ── AI TAB ── */}

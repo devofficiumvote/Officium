@@ -119,7 +119,12 @@
       "Bash(curl -s \"https://voteview.com/static/data/out/members/S119_members.csv\")",
       "Bash(python3)",
       "Bash(curl -s \"https://efts.sec.gov/LATEST/search-index?q=senator&forms=4&dateRange=custom&startdt=2025-01-01&enddt=2026-01-01\" -H \"User-Agent: Officium officium@vote.com\")",
-      "Bash(python3 -c \" import sys,json try: d=json.load\\(sys.stdin\\) print\\(f'Keys: {list\\(d.keys\\(\\)\\)}'\\) print\\(f'Total: {d.get\\(\\\\\"total\\\\\",{}\\).get\\(\\\\\"value\\\\\",0\\)}'\\) except: print\\('parse failed: '+sys.stdin.read\\(\\)[:200]\\) \")"
+      "Bash(python3 -c \" import sys,json try: d=json.load\\(sys.stdin\\) print\\(f'Keys: {list\\(d.keys\\(\\)\\)}'\\) print\\(f'Total: {d.get\\(\\\\\"total\\\\\",{}\\).get\\(\\\\\"value\\\\\",0\\)}'\\) except: print\\('parse failed: '+sys.stdin.read\\(\\)[:200]\\) \")",
+      "Bash(curl -s 'https://api.congress.gov/v3/member/W000790/sponsoredLegislation?limit=3&format=json&api_key=YdbWI0KzqPkIvv9vcx3z6dQpaG6ARB8cSr7HOdWC')",
+      "Bash(python3 -c \" import sys,json d=json.load\\(sys.stdin\\) bills=d.get\\('sponsoredLegislation',[]\\) print\\(f'Bills: {len\\(bills\\)}'\\) \" echo \"\" echo \"=== Check what bioguideId Warnock has in our data ===\" python3 -c \" import json gt=json.load\\(open\\('/Users/ahsansiddiqui/Desktop/officium/public/data/govtrack-members.json'\\)\\) for bio,m in gt['members'].items\\(\\): if 'Warnock' in m.get\\('name',''\\) or 'Warnock' in m.get\\('lastName',''\\): print\\(f'GovTrack: {bio} → {m[\\\\\"name\\\\\"]}'\\)\")",
+      "Bash(curl -s 'https://api.congress.gov/v3/member/W000790?format=json&api_key=YdbWI0KzqPkIvv9vcx3z6dQpaG6ARB8cSr7HOdWC')",
+      "Bash(python3 -c \" import sys,json d=json.load\\(sys.stdin\\) m=d.get\\('member',{}\\) print\\(f'Name: {m.get\\(\\\\\"directOrderName\\\\\",\\\\\"?\\\\\"\\)}'\\) sp=m.get\\('sponsoredLegislation',{}\\) print\\(f'Sponsored: {json.dumps\\(sp\\)[:200]}'\\) cosp=m.get\\('cosponsoredLegislation',{}\\) print\\(f'Cosponsored: {json.dumps\\(cosp\\)[:200]}'\\) \" echo \"\")",
+      "Bash(python3 -c \" import sys,json d=json.load\\(sys.stdin\\) print\\(f'Keys: {list\\(d.keys\\(\\)\\)}'\\) bills=d.get\\('sponsoredLegislation',[]\\) print\\(f'Bills: {len\\(bills\\)}'\\) if bills: print\\(json.dumps\\(bills[0]\\)[:200]\\) \")"
     ]
   }
 }
