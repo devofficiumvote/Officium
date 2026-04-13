@@ -215,13 +215,13 @@ function computeAccountabilityScore(pol, trades) {
   return {
     total: donorScore + independenceScore + participationScore + transparencyScore + tradingScore + darkMoneyScore + committeeScore,
     components: [
-      { label: "Donor Independence", score: donorScore, max: 25 },
-      { label: "Party Independence", score: independenceScore, max: 15 },
-      { label: "Voting Participation", score: participationScore, max: 20 },
-      { label: "Financial Transparency", score: transparencyScore, max: 20 },
-      { label: "Committee Conflict", score: committeeScore, max: 10 },
-      { label: "Dark Money Exposure", score: darkMoneyScore, max: 5 },
-      { label: "Trading Pattern", score: tradingScore, max: 5 },
+      { label: "Donor Independence", score: donorScore, max: 25, explain: `How much funding comes from individual donors vs PACs. ${Math.round((1-pacRatio)*100)}% individual-funded. Higher = less dependent on special interests.` },
+      { label: "Party Independence", score: independenceScore, max: 15, explain: `How far their voting record deviates from their party's median ideology. ${pol.ideology!=null?"DW-NOMINATE: "+pol.ideology.toFixed(2)+". ":""}Higher = more independent, votes across party lines more often.` },
+      { label: "Voting Participation", score: participationScore, max: 20, explain: `How often they show up to vote. ${pol.totalVotes>0?Math.round(participationRate*100)+"% attendance ("+pol.absentCount+" missed).":"No voting data."} Higher = more engaged in the legislative process.` },
+      { label: "Financial Transparency", score: transparencyScore, max: 20, explain: `How timely they file STOCK Act disclosures. ${tradeCount>0?"Avg filing delay: "+Math.round(gapAvg)+" days (45-day limit). "+tradeCount+" trades disclosed.":"No stock trades on record."} Higher = more timely and transparent.` },
+      { label: "Committee Conflict", score: committeeScore, max: 10, explain: `Whether they trade stocks in sectors they may have legislative influence over. ${hasSectorConflict?"Trades in "+[...tradeSectors].join(", ")+" while receiving PAC money — potential conflict.":"No sector overlap detected."} Higher = fewer conflicts.` },
+      { label: "Dark Money Exposure", score: darkMoneyScore, max: 5, explain: `What percentage of funding comes from PACs and political committees vs traceable individual donors. ${Math.round(pacRatio*100)}% from PACs. Higher = more transparent funding sources.` },
+      { label: "Trading Pattern", score: tradingScore, max: 5, explain: `Volume of stock trading activity. ${tradeCount} disclosed trades. ${tradeCount>20?"Heavy trading activity raises scrutiny.":tradeCount===0?"No trading activity on record.":"Moderate trading volume."} Higher = less trading activity.` },
     ]
   };
 }
@@ -1892,7 +1892,7 @@ function ProfilePage({pol,pols,allTrades,onSelect,onBack,user,onSetUser}){
                     <div style={{display:"flex",flexDirection:"column",gap:6}}>
                       {as.components.map(c=>(
                         <div key={c.label} style={{display:"flex",alignItems:"center",gap:8}}>
-                          <div style={{width:130,fontSize:12,color:"rgba(255,255,255,.4)"}}>{c.label}</div>
+                          <Tip text={c.explain}><div style={{width:130,fontSize:12,color:"rgba(255,255,255,.4)",cursor:"help"}}>{c.label}</div></Tip>
                           <div style={{flex:1,height:6,borderRadius:3,background:"rgba(255,255,255,.06)",overflow:"hidden"}}><div style={{height:"100%",width:((c.score/c.max)*100)+"%",background:c.score/c.max>0.6?"#4ade80":c.score/c.max>0.3?"#fbbf24":"#ef4444",borderRadius:3}}/></div>
                           <div style={{width:40,fontSize:12,fontWeight:700,color:"rgba(255,255,255,.5)",textAlign:"right"}}>{c.score}/{c.max}</div>
                         </div>
@@ -3768,6 +3768,25 @@ function AboutPage(){
             <p>• <strong style={{color:"#fbbf24"}}>House Trade Data (Historical)</strong>: The House Stock Watcher S3 bucket has been permanently offline (HTTP 403) since 2024. Current House trades are now sourced from QuiverQuant.</p>
             <p>• <strong style={{color:"#fbbf24"}}>1 Unmatched FEC Record</strong>: Alan Armstrong (OK, Senate) has no FEC campaign finance filings — he was recently appointed and has not yet filed with the FEC.</p>
             <p>• <strong style={{color:"#fbbf24"}}>LDA Sunsetting</strong>: The lda.senate.gov API is being migrated to lda.gov by June 30, 2026. We use both endpoints with automatic failover.</p>
+          </div>
+
+          <h2 style={{fontSize:22,fontWeight:800,color:"#fff",margin:"32px 0 8px"}}>Accountability Score Methodology</h2>
+          <p style={{fontSize:14,color:"rgba(255,255,255,.4)",lineHeight:1.7,marginBottom:12}}>Each official receives a composite score from 0-100 based on seven weighted components. Higher scores indicate greater transparency and independence. This methodology is v1 and pending academic validation.</p>
+          <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:20}}>
+            {[
+              ["Donor Independence (25 pts)","Measures what percentage of an official's campaign funding comes from individual donors versus PACs and political committees. Officials funded primarily by individual citizens score higher than those dependent on special interest PACs."],
+              ["Party Independence (15 pts)","Measures how far an official's voting record deviates from their party's median ideology using DW-NOMINATE scores. Officials who vote across party lines more often score higher, indicating they prioritize issues over party loyalty."],
+              ["Voting Participation (20 pts)","Measures how often an official shows up to cast votes. Officials who miss fewer roll call votes score higher. Based on Voteview.com data for the 119th Congress."],
+              ["Financial Transparency (20 pts)","Measures how timely an official files their STOCK Act trade disclosures. Officials who file within the 45-day legal deadline score higher. Those who consistently file late or have violations score lower."],
+              ["Committee Conflict (10 pts)","Detects whether an official trades stocks in the same industry sectors from which they receive PAC funding. Trading in sectors you may legislate on while receiving money from those sectors creates a potential conflict of interest."],
+              ["Dark Money Exposure (5 pts)","Measures the ratio of traceable individual donations to opaque PAC/committee funding. Officials with more transparent, traceable funding sources score higher."],
+              ["Trading Pattern (5 pts)","Measures the volume of an official's stock trading activity. Extremely high trading volumes by lawmakers receive more scrutiny. Officials with no or moderate trading score higher."],
+            ].map(([title,desc])=>(
+              <div key={title} style={{padding:"12px 16px",background:"rgba(255,255,255,.02)",borderRadius:10,border:"1px solid rgba(255,255,255,.04)"}}>
+                <div style={{fontSize:14,fontWeight:700,color:"#e2e8f0",marginBottom:4}}>{title}</div>
+                <div style={{fontSize:13,color:"rgba(255,255,255,.35)",lineHeight:1.6}}>{desc}</div>
+              </div>
+            ))}
           </div>
 
           <h2 style={{fontSize:22,fontWeight:800,color:"#fff",margin:"32px 0 8px"}}>Non-Partisan Statement</h2>
