@@ -2168,6 +2168,11 @@ function ProfilePage({pol,pols,allTrades,onSelect,onBack,user,onSetUser}){
         {/* ── TRADES TAB ── */}
         {tab==="trades"&&(
           <div style={{display:"flex",flexDirection:"column",gap:12}}>
+{trades.length===0&&<div style={{textAlign:"center",padding:"40px 20px"}}>
+  <div style={{fontSize:36,marginBottom:12,opacity:.3}}>📊</div>
+  <div style={{fontSize:16,fontWeight:700,color:"rgba(255,255,255,.5)",marginBottom:8}}>No Stock Trades on Record</div>
+  <div style={{fontSize:14,color:"rgba(255,255,255,.3)",lineHeight:1.6,maxWidth:500,margin:"0 auto"}}>This official has not disclosed any stock trades under the STOCK Act. This could mean they do not personally trade stocks, their trades are below disclosure thresholds, or their disclosures have not yet been processed by our data sources (QuiverQuant and Financial Modeling Prep).</div>
+</div>}
 {trades.length>0&&<div style={{marginBottom:20}}>
   <div style={{display:"grid",gridTemplateColumns:m?"1fr 1fr":"repeat(4,1fr)",gap:12,marginBottom:16}}>
     {(()=>{
@@ -2236,7 +2241,7 @@ function ProfilePage({pol,pols,allTrades,onSelect,onBack,user,onSetUser}){
                   <div style={{width:50,height:50,borderRadius:"50%",background:"#09090b",display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column"}}><div style={{fontSize:16,fontWeight:900,color:rC,lineHeight:1}}>{risk}</div><div style={{fontSize:7,color:"rgba(255,255,255,.25)"}}>RISK</div></div>
                 </div>
                 <div style={{flex:1}}>
-                  <div style={{fontSize:13,fontWeight:700,color:rC,marginBottom:4}}>{riskLabel(risk)} RISK · {trades.length} disclosures · {violations} violation{violations!==1?"s":""}</div>
+                  <div style={{fontSize:13,fontWeight:700,color:rC,marginBottom:4}}>{riskLabel(risk)} RISK · {trades.length>0?trades.length+" disclosures · "+violations+" violation"+(violations!==1?"s":""):"No stock trades on record"}</div>
                   <div style={{fontSize:12,color:"rgba(255,255,255,.35)"}}>QuiverQuant Congressional Trading · gap = transaction → disclosure date</div>
                 </div>
                 <div style={{display:"flex",gap:8}}>
@@ -2543,7 +2548,7 @@ function _ProfilePageV6Unused({pol,onBack,user,onSetUser}){
                 <div style={{width:64,height:64,borderRadius:"50%",background:`conic-gradient(${rC} ${risk*3.6}deg,rgba(255,255,255,.05) 0deg)`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
                   <div style={{width:50,height:50,borderRadius:"50%",background:"#09090b",display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column"}}><div style={{fontSize:16,fontWeight:900,color:rC,lineHeight:1}}>{risk}</div><div style={{fontSize:7,color:"rgba(255,255,255,.25)"}}>RISK</div></div>
                 </div>
-                <div><div style={{fontSize:13,fontWeight:700,color:rC,marginBottom:4}}>{riskLabel(risk)} RISK</div><div style={{fontSize:12,color:"rgba(255,255,255,.35)"}}>{trades.length} disclosures · {violations} violation{violations!==1?"s":""} · from QuiverQuant Congressional Trading</div></div>
+                <div><div style={{fontSize:13,fontWeight:700,color:rC,marginBottom:4}}>{riskLabel(risk)} RISK</div><div style={{fontSize:12,color:"rgba(255,255,255,.35)"}}>{trades.length>0?trades.length+" disclosures · "+violations+" violation"+(violations!==1?"s":"")+" · from QuiverQuant + FMP":"No stock trades disclosed · This official has not reported any STOCK Act transactions"}</div></div>
                 <div style={{marginLeft:"auto",display:"flex",gap:8}}>
                   {[["Buys",trades.filter(t=>t.action==="BUY").length,"#4ade80"],["Sells",trades.filter(t=>t.action==="SELL").length,"#f87171"],["Violations",violations,"#ef4444"]].map(([l,v,c])=>(
                     <div key={l} style={{background:"rgba(255,255,255,.04)",borderRadius:8,padding:"8px 12px",textAlign:"center"}}>
