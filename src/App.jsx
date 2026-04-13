@@ -3101,7 +3101,7 @@ function BrowsePage({pols,trades,onSelect,user,onSetUser}){
           <p style={{fontSize:13,color:"rgba(255,255,255,.3)",margin:"0 0 16px"}}>Search and filter every member of Congress. See their campaign finances, stock trades, and voting record.</p>
           {(()=>{const totalRaised=pols.reduce((s,p)=>s+p.raised,0);const avgPer=pols.length>0?totalRaised/pols.length:0;const highRisk=pols.reduce((best,p)=>{const pT=(trades||[]).filter(t=>(t.name||"").toLowerCase().includes(p.name.toLowerCase().split(/\s+/).pop()));const r=calcRisk(pT,p.raised);return r>(best.r||0)?{name:p.name,r}:best;},{name:"--",r:0});const mostTrades=Object.entries(tradeMap).sort((a,b)=>(b[1].count||0)-(a[1].count||0))[0];const mtPol=mostTrades?pols.find(p=>p.id===mostTrades[0]):null;return(
             <div style={{display:"grid",gridTemplateColumns:m?"1fr 1fr":"repeat(3,1fr)",gap:10,marginBottom:18}}>
-              {[["Total Raised",pols.some(p=>p.raised>0)?fmt(totalRaised):"Loading...","#10b981"],["Avg / Member",pols.some(p=>p.raised>0)?fmt(avgPer):"Loading...","#3b82f6"],["Highest Risk",highRisk.name.split(" ").pop()+" ("+highRisk.r+")","#ef4444"],["Most Trades",(mtPol?mtPol.name.split(" ").pop():"--")+" ("+(mostTrades?mostTrades[1].count:0)+")","#a78bfa"],["PAC Funded",pols.some(p=>p.pacContrib>0)?fmt(pols.filter(p=>p.pacContrib>0).reduce((a,p)=>a+p.pacContrib,0)):"Loading...","#f59e0b"],["Total Debt",pols.some(p=>p.debts>0)?fmt(pols.reduce((a,p)=>a+p.debts,0)):"Loading...","#f97316"],["Women",pols.filter(p=>p.gender==="Female").length||"—","#fb7185"],["Avg Tenure",pols.filter(p=>p.yearsInOffice>0).length>0?Math.round(pols.filter(p=>p.yearsInOffice>0).reduce((a,p)=>a+p.yearsInOffice,0)/pols.filter(p=>p.yearsInOffice>0).length)+"yr":"—","#a78bfa"],["Avg Yea%",pols.filter(p=>p.yeaPct>0).length>0?Math.round(pols.filter(p=>p.yeaPct>0).reduce((a,p)=>a+p.yeaPct,0)/pols.filter(p=>p.yeaPct>0).length)+"%":"—","#6366f1"]].map(([l,v,c])=>(
+              {[["Total Raised",pols.some(p=>p.raised>0)?fmt(totalRaised):"Loading...","#10b981"],["Avg / Member",pols.some(p=>p.raised>0)?fmt(avgPer):"Loading...","#3b82f6"],["Highest Risk",highRisk.name.split(" ").pop()+" ("+highRisk.r+")","#ef4444"],["Most Trades",(mtPol?mtPol.name.split(" ").pop():"--")+" ("+(mostTrades?mostTrades[1].count:0)+")","#a78bfa"],["PAC Funded",pols.some(p=>p.pacContrib>0)?fmt(pols.filter(p=>p.pacContrib>0).reduce((a,p)=>a+p.pacContrib,0)):"Loading...","#f59e0b"],["Total Debt",pols.some(p=>p.debts>0)?fmt(pols.reduce((a,p)=>a+(p.debts||0),0)):"Loading...","#f97316"],["Women",pols.some(p=>p.gender)?pols.filter(p=>p.gender==="Female").length:"Loading...","#fb7185"],["Avg Tenure",pols.filter(p=>p.yearsInOffice>0).length>0?Math.round(pols.filter(p=>p.yearsInOffice>0).reduce((a,p)=>a+p.yearsInOffice,0)/pols.filter(p=>p.yearsInOffice>0).length)+"yr":"—","#a78bfa"],["Avg Yea%",pols.filter(p=>p.yeaPct>0).length>0?Math.round(pols.filter(p=>p.yeaPct>0).reduce((a,p)=>a+p.yeaPct,0)/pols.filter(p=>p.yeaPct>0).length)+"%":"—","#6366f1"]].map(([l,v,c])=>(
                 <div key={l} style={{background:c+"0a",border:"1px solid "+c+"22",borderRadius:10,padding:"10px 14px"}}>
                   <div style={{fontSize:12,color:"rgba(255,255,255,.25)",textTransform:"uppercase",letterSpacing:.5,marginBottom:3}}>{l}</div>
                   <div style={{fontSize:12,fontWeight:800,color:c,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{v}</div>
@@ -3533,13 +3533,13 @@ function HomePage({pols,trades,onBrowse,onSelect,onLogin,user}){
   return(
     <div style={{width:"100%"}}>
       {/* HERO — centered, deep purple */}
-      <div style={{position:"relative",minHeight:"100svh",background:"linear-gradient(135deg,#18181b 0%,#09090b 40%,#0c4a6e 70%,#09090b 100%)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",overflow:"hidden"}}>
+      <div style={{position:"relative",minHeight:"100svh",background:"linear-gradient(135deg,#18181b 0%,#09090b 40%,#0c4a6e 70%,#09090b 100%)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",overflowX:"clip",overflowY:"visible"}}>
         {/* Orbs — vibrant gradient blobs */}
         <div style={{position:"absolute",width:900,height:900,borderRadius:"50%",background:"radial-gradient(circle,rgba(14,165,233,.15) 0%,rgba(79,70,229,.1) 40%,transparent 70%)",top:"-300px",left:"20%",animation:"orbA 32s ease-in-out infinite",pointerEvents:"none"}}/>
         <div style={{position:"absolute",width:700,height:700,borderRadius:"50%",background:"radial-gradient(circle,rgba(20,184,166,.12) 0%,rgba(139,92,246,.08) 40%,transparent 70%)",bottom:"-200px",right:"-50px",animation:"orbB 24s ease-in-out infinite",pointerEvents:"none"}}/>
         <div style={{position:"absolute",width:500,height:500,borderRadius:"50%",background:"radial-gradient(circle,rgba(14,165,233,.15) 0%,transparent 65%)",top:"40%",left:"-120px",animation:"orbA 20s ease-in-out infinite",animationDelay:"-10s",pointerEvents:"none"}}/>
         <div style={{position:"absolute",width:400,height:400,borderRadius:"50%",background:"radial-gradient(circle,rgba(6,182,212,.08) 0%,transparent 60%)",top:"10%",right:"5%",animation:"orbB 28s ease-in-out infinite",animationDelay:"-5s",pointerEvents:"none"}}/>
-        <div style={{position:"absolute",inset:0,opacity:.45,pointerEvents:"none"}}><FloatingCards pols={pols} trades={trades} onSelect={onSelect}/></div>
+        <div style={{position:"absolute",inset:0,opacity:.3,pointerEvents:"none"}}><FloatingCards pols={pols} trades={trades} onSelect={onSelect}/></div>
         <svg style={{position:"absolute",inset:0,width:"100%",height:"100%",opacity:.02,pointerEvents:"none"}}><defs><pattern id="grd" width="60" height="60" patternUnits="userSpaceOnUse"><path d="M 60 0 L 0 0 0 60" fill="none" stroke="#6366f1" strokeWidth="0.5"/></pattern></defs><rect width="100%" height="100%" fill="url(#grd)"/></svg>
         <div style={{position:"absolute",left:0,right:0,height:1,background:"linear-gradient(90deg,transparent,rgba(99,102,241,.12),transparent)",animation:"scanline 12s linear infinite",pointerEvents:"none"}}/>
         {/* Vignette overlay for text readability */}
@@ -3850,7 +3850,7 @@ function PricingPage(){
             </div>
           ))}
         </div>
-        <div style={{textAlign:"center",marginTop:28,fontSize:13,color:"rgba(255,255,255,.2)"}}>All prices are planning assumptions per BRD &sect;32. Final pricing pending 10 customer discovery interviews.</div>
+        <div style={{textAlign:"center",marginTop:28,fontSize:13,color:"rgba(255,255,255,.2)"}}>All prices are planning assumptions. Final pricing pending customer discovery interviews.</div>
       </CW>
     </div>
   );
@@ -4005,9 +4005,11 @@ function MemberVotingRecord({pol}){
 function DonorExplorer({pols,onSelect}){
   const[mode,setMode]=useState("industry");const[q,setQ]=useState("");const m=mob();
   const industryResults=useMemo(()=>{
-    if(mode!=="industry"||!q)return[];
-    const lq=q.toLowerCase();
-    return pols.filter(p=>p.hasRealFinancials&&p.raised>0).sort((a,b)=>b.raised-a.raised).slice(0,50);
+    if(mode!=="industry")return[];
+    /* Show top fundraisers by default, filter by query if typed */
+    let r=pols.filter(p=>p.hasRealFinancials&&p.raised>0);
+    if(q){const lq=q.toLowerCase();r=r.filter(p=>classifyTicker&&p.name.toLowerCase().includes(lq));}
+    return r.sort((a,b)=>b.raised-a.raised).slice(0,50);
   },[pols,q,mode]);
   const stateResults=useMemo(()=>{
     if(mode!=="state"||!q)return[];
