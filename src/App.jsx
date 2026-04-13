@@ -1950,6 +1950,34 @@ function ProfilePage({pol,pols,allTrades,onSelect,onBack,user,onSetUser}){
                 <div style={{fontSize:12,color:"rgba(255,255,255,.15)",marginTop:12,fontStyle:"italic"}}>Full revolving door tracker coming in Phase 2.</div>
               </div>
             </div>
+{/* Chamber Comparison */}
+{pol.raised>0&&<div style={{marginTop:20}}>
+  <div style={{fontWeight:700,fontSize:15,color:"#fff",marginBottom:14}}>How {pol.name.split(" ").pop()} Compares</div>
+  <div style={{background:"rgba(255,255,255,.03)",border:"1px solid rgba(255,255,255,.06)",borderRadius:14,padding:20}}>
+    {(()=>{
+      const chamberPols=(pols||[]).filter(p=>p.chamber===pol.chamber&&p.raised>0);
+      const chamberAvg=chamberPols.length?chamberPols.reduce((a,p)=>a+p.raised,0)/chamberPols.length:0;
+      const stateRank=(pols||[]).filter(p=>p.state===pol.state&&p.raised>pol.raised).length+1;
+      const chamberRank=chamberPols.sort((a,b)=>b.raised-a.raised).findIndex(p=>p.id===pol.id)+1;
+      const partyPols=(pols||[]).filter(p=>p.party===pol.party&&p.raised>0);
+      const partyAvg=partyPols.length?partyPols.reduce((a,p)=>a+p.raised,0)/partyPols.length:0;
+      return(<div style={{display:"grid",gridTemplateColumns:m?"1fr":"repeat(3,1fr)",gap:14}}>
+        <div style={{textAlign:"center",padding:14,background:"rgba(6,182,212,.04)",borderRadius:10}}>
+          <div style={{fontSize:24,fontWeight:900,color:pol.raised>chamberAvg?"#4ade80":"#f87171"}}>{pol.raised>chamberAvg?"+":""}{Math.round((pol.raised/chamberAvg-1)*100)}%</div>
+          <div style={{fontSize:12,color:"rgba(255,255,255,.3)"}}>vs {pol.chamber} avg ({fmt(chamberAvg)})</div>
+        </div>
+        <div style={{textAlign:"center",padding:14,background:"rgba(6,182,212,.04)",borderRadius:10}}>
+          <div style={{fontSize:24,fontWeight:900,color:"#67e8f9"}}>#{chamberRank>0?chamberRank:"—"}</div>
+          <div style={{fontSize:12,color:"rgba(255,255,255,.3)"}}>in {pol.chamber} fundraising</div>
+        </div>
+        <div style={{textAlign:"center",padding:14,background:"rgba(6,182,212,.04)",borderRadius:10}}>
+          <div style={{fontSize:24,fontWeight:900,color:"#fbbf24"}}>#{stateRank}</div>
+          <div style={{fontSize:12,color:"rgba(255,255,255,.3)"}}>in {pol.state} delegation</div>
+        </div>
+      </div>);
+    })()}
+  </div>
+</div>}
           </div>
         )}
         {/* ── DEEP FINANCE TAB (new) ── */}
@@ -2070,6 +2098,18 @@ function ProfilePage({pol,pols,allTrades,onSelect,onBack,user,onSetUser}){
                 <Disclaimer/>
               </div>
             </div>}
+{pol.fecCycles&&pol.fecCycles.length>1&&<div style={{marginTop:20}}>
+  <div style={{fontWeight:700,fontSize:15,color:"#fff",marginBottom:14}}>Election Cycle History</div>
+  <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+    {pol.fecCycles.sort().map(cy=>(
+      <div key={cy} style={{background:"rgba(6,182,212,.04)",border:"1px solid rgba(6,182,212,.1)",borderRadius:10,padding:"10px 16px",textAlign:"center"}}>
+        <div style={{fontSize:16,fontWeight:800,color:"#67e8f9"}}>{cy}</div>
+        <div style={{fontSize:12,color:"rgba(255,255,255,.3)"}}>Cycle</div>
+      </div>
+    ))}
+  </div>
+  <div style={{fontSize:12,color:"rgba(255,255,255,.2)",marginTop:8}}>{pol.fecCycles.length} election cycles on record. First filed: {pol.firstFiled||"N/A"}. Most recent: {pol.lastFiled||"N/A"}.</div>
+</div>}
             {trades.length>0&&pol.firstFiled&&<div style={{marginTop:20}}>
               <div style={{fontWeight:700,fontSize:15,color:"#fff",marginBottom:14}}>Financial Timeline</div>
               <div style={{background:"rgba(6,182,212,.03)",border:"1px solid rgba(6,182,212,.08)",borderRadius:14,padding:20}}>
@@ -2102,6 +2142,42 @@ function ProfilePage({pol,pols,allTrades,onSelect,onBack,user,onSetUser}){
         {/* ── TRADES TAB ── */}
         {tab==="trades"&&(
           <div style={{display:"flex",flexDirection:"column",gap:12}}>
+{trades.length>0&&<div style={{marginBottom:20}}>
+  <div style={{display:"grid",gridTemplateColumns:m?"1fr 1fr":"repeat(4,1fr)",gap:12,marginBottom:16}}>
+    {(()=>{
+      const buys=trades.filter(t=>t.action==="BUY").length;
+      const sells=trades.filter(t=>t.action==="SELL").length;
+      const sectors={};trades.forEach(t=>{const s=classifyTicker(t.ticker);if(s!=="Other")sectors[s]=(sectors[s]||0)+1;});
+      const topSector=Object.entries(sectors).sort((a,b)=>b[1]-a[1])[0];
+      const avgGap=trades.filter(t=>t.gap>0).length>0?Math.round(trades.filter(t=>t.gap>0).reduce((a,t)=>a+t.gap,0)/trades.filter(t=>t.gap>0).length):0;
+      return[
+        ["Buy/Sell",`${buys}/${sells}`,"#6366f1"],
+        ["Top Sector",topSector?topSector[0]:"N/A","#14b8a6"],
+        ["Avg Filing Delay",avgGap>0?avgGap+"d":"N/A",avgGap>45?"#ef4444":"#4ade80"],
+        ["Unique Tickers",new Set(trades.filter(t=>t.ticker).map(t=>t.ticker)).size+"","#f59e0b"],
+      ].map(([l,v,c])=>(
+        <div key={l} style={{background:"rgba(255,255,255,.03)",borderRadius:10,padding:"12px 14px",textAlign:"center"}}>
+          <div style={{fontSize:18,fontWeight:800,color:c}}>{v}</div>
+          <div style={{fontSize:12,color:"rgba(255,255,255,.3)"}}>{l}</div>
+        </div>
+      ));
+    })()}
+  </div>
+  {/* Sector breakdown */}
+  {(()=>{
+    const sectors={};trades.forEach(t=>{const s=classifyTicker(t.ticker);sectors[s]=(sectors[s]||0)+1;});
+    const sorted=Object.entries(sectors).sort((a,b)=>b[1]-a[1]);
+    if(sorted.length<=1)return null;
+    return <div style={{marginBottom:16}}>
+      <div style={{fontSize:13,fontWeight:700,color:"#e2e8f0",marginBottom:8}}>Trading by Sector</div>
+      <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+        {sorted.map(([s,c])=>(
+          <span key={s} style={{fontSize:12,padding:"4px 12px",borderRadius:8,background:"rgba(6,182,212,.08)",border:"1px solid rgba(6,182,212,.15)",color:"#67e8f9",fontWeight:600}}>{s}: {c}</span>
+        ))}
+      </div>
+    </div>;
+  })()}
+</div>}
             {/* Trade Activity Summary */}
             {trades.length>0&&(()=>{
               const amtRanges={"$1,001 - $15,000":8000,"$15,001 - $50,000":32500,"$50,001 - $100,000":75000,"$100,001 - $250,000":175000,"$250,001 - $500,000":375000,"$500,001 - $1,000,000":750000,"$1,000,001 - $5,000,000":3000000,"$5,000,001 - $25,000,000":15000000,"$25,000,001 - $50,000,000":37500000,"Over $50,000,000":75000000};
@@ -2170,6 +2246,24 @@ function ProfilePage({pol,pols,allTrades,onSelect,onBack,user,onSetUser}){
           <div style={{...ds}}>
             <div style={{fontWeight:700,fontSize:14,color:"#e2e8f0",marginBottom:4}}>Sponsored Legislation</div>
             <div style={{fontSize:12,color:"rgba(255,255,255,.3)",marginBottom:16}}>Congress.gov API · {bills.length} bills</div>
+{bills.length>0&&<div style={{display:"grid",gridTemplateColumns:m?"1fr 1fr":"repeat(3,1fr)",gap:12,marginBottom:16}}>
+  <div style={{background:"rgba(6,182,212,.04)",borderRadius:10,padding:"12px 14px",textAlign:"center"}}>
+    <div style={{fontSize:22,fontWeight:900,color:"#67e8f9"}}>{bills.length}</div>
+    <div style={{fontSize:12,color:"rgba(255,255,255,.3)"}}>Bills Sponsored</div>
+  </div>
+  <div style={{background:"rgba(6,182,212,.04)",borderRadius:10,padding:"12px 14px",textAlign:"center"}}>
+    <div style={{fontSize:22,fontWeight:900,color:"#14b8a6"}}>{bills.filter(b=>(b.type||"").includes("S")).length}</div>
+    <div style={{fontSize:12,color:"rgba(255,255,255,.3)"}}>Senate Bills</div>
+  </div>
+  <div style={{background:"rgba(6,182,212,.04)",borderRadius:10,padding:"12px 14px",textAlign:"center"}}>
+    <div style={{fontSize:22,fontWeight:900,color:"#f59e0b"}}>{bills.filter(b=>b.latestAction?.text?.includes("Became") || b.latestAction?.text?.includes("Signed")).length}</div>
+    <div style={{fontSize:12,color:"rgba(255,255,255,.3)"}}>Enacted</div>
+  </div>
+</div>}
+{bills.length>0&&pol.raised>0&&<div style={{background:"rgba(245,158,11,.04)",border:"1px solid rgba(245,158,11,.1)",borderRadius:10,padding:"12px 16px",marginBottom:16}}>
+  <div style={{fontSize:13,color:"rgba(255,255,255,.4)",lineHeight:1.6}}>{"\u{1F4CA}"} <strong style={{color:"#fbbf24"}}>Cross-Reference:</strong> {pol.name.split(" ").pop()} has sponsored {bills.length} bills while raising {fmt(pol.raised)} in campaign funds{pol.pacContrib>0?` (${Math.round((pol.pacContrib/pol.raised)*100)}% from PACs)`:""}.{pol.totalVotes>0?` They voted Yea ${pol.yeaPct}% of the time across ${pol.totalVotes} votes.`:""}</div>
+  <Disclaimer/>
+</div>}
             {!pol.bioguideId&&<div style={{fontSize:13,color:"rgba(255,255,255,.3)"}}>No Bioguide ID — Congress.gov unavailable.</div>}
             {bills.length===0&&pol.bioguideId&&<div style={{fontSize:13,color:"rgba(255,255,255,.3)"}}>No sponsored legislation found.</div>}
             {bills.length>0&&<div style={{background:"rgba(20,184,166,.04)",border:"1px solid rgba(20,184,166,.1)",borderRadius:12,padding:16,marginBottom:16}}>
@@ -2196,6 +2290,23 @@ function ProfilePage({pol,pols,allTrades,onSelect,onBack,user,onSetUser}){
         {tab==="lobbying"&&<div>
           <div style={{fontWeight:700,fontSize:16,color:"#fff",marginBottom:14}}>Lobbying & Foreign Influence</div>
           <p style={{fontSize:13,color:"rgba(255,255,255,.35)",marginBottom:20}}>Lobbying activity targeting {pol.chamber==="Senate"?"the Senate":"the House"} from {pol.state}. Data from LDA.gov and FARA.</p>
+{(()=>{
+  // Count lobbying filings targeting this chamber
+  return <div style={{display:"grid",gridTemplateColumns:m?"1fr 1fr":"repeat(3,1fr)",gap:12,marginBottom:16}}>
+    <div style={{background:"rgba(99,102,241,.04)",borderRadius:10,padding:"12px 14px",textAlign:"center"}}>
+      <div style={{fontSize:22,fontWeight:900,color:"#6366f1"}}>{pol.chamber}</div>
+      <div style={{fontSize:12,color:"rgba(255,255,255,.3)"}}>Chamber</div>
+    </div>
+    <div style={{background:"rgba(99,102,241,.04)",borderRadius:10,padding:"12px 14px",textAlign:"center"}}>
+      <div style={{fontSize:22,fontWeight:900,color:"#a5b4fc"}}>{pol.state}</div>
+      <div style={{fontSize:12,color:"rgba(255,255,255,.3)"}}>State</div>
+    </div>
+    {pol.raised>0&&<div style={{background:"rgba(245,158,11,.04)",borderRadius:10,padding:"12px 14px",textAlign:"center"}}>
+      <div style={{fontSize:22,fontWeight:900,color:"#fbbf24"}}>{Math.round((pol.pacContrib||0)/(pol.raised||1)*100)}%</div>
+      <div style={{fontSize:12,color:"rgba(255,255,255,.3)"}}>PAC Funded</div>
+    </div>}
+  </div>;
+})()}
           <LobbyingPanel pol={pol}/>
           {trades.length>0&&<div style={{marginTop:20}}>
             <div style={{fontWeight:700,fontSize:15,color:"#fff",marginBottom:14}}>Lobbying ↔ Trading Cross-Reference</div>
