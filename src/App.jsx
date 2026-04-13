@@ -599,11 +599,28 @@ function TradeModal({trade,pol,onClose}){
         {pol&&pol.phone&&<div style={{marginTop:14,padding:"12px 14px",background:"rgba(20,184,166,.06)",border:"1px solid rgba(20,184,166,.15)",borderRadius:10,textAlign:"center"}}>
           <div style={{fontSize:13,color:"#14b8a6",fontWeight:600}}>Contact {pol.name.split(" ").pop()}: {pol.phone}</div>
         </div>}
-        {trade.ticker&&<div style={{marginTop:14,padding:"12px 14px",background:"rgba(99,102,241,.04)",border:"1px solid rgba(99,102,241,.1)",borderRadius:10}}>
-          <div style={{fontSize:13,fontWeight:700,color:"#a5b4fc",marginBottom:6}}>Sector: {classifyTicker(trade.ticker)}</div>
-          <div style={{fontSize:12,color:"rgba(255,255,255,.35)"}}>This trade is in the {classifyTicker(trade.ticker)} sector. Check the official's voting record for related legislation and donor connections from this industry.</div>
-        </div>}
-        <Disclaimer/>
+        {/* BRD §12: Three cross-reference queries */}
+        <div style={{marginTop:14}}>
+          <div style={{fontSize:14,fontWeight:700,color:"#e2e8f0",marginBottom:10}}>Cross-Reference Analysis</div>
+          <div style={{display:"flex",flexDirection:"column",gap:10}}>
+            {/* Query 1: Sector classification */}
+            {trade.ticker&&<div style={{padding:"12px 14px",background:"rgba(6,182,212,.04)",border:"1px solid rgba(6,182,212,.1)",borderRadius:10}}>
+              <div style={{fontSize:13,fontWeight:700,color:"#67e8f9",marginBottom:4}}>1. Sector Classification</div>
+              <div style={{fontSize:13,color:"rgba(255,255,255,.4)"}}>This trade is in the <strong style={{color:"#e2e8f0"}}>{classifyTicker(trade.ticker)}</strong> sector. Check the official's voting record for legislation affecting this industry.</div>
+            </div>}
+            {/* Query 2: Vote proximity */}
+            <div style={{padding:"12px 14px",background:"rgba(245,158,11,.04)",border:"1px solid rgba(245,158,11,.1)",borderRadius:10}}>
+              <div style={{fontSize:13,fontWeight:700,color:"#fbbf24",marginBottom:4}}>2. Vote Proximity (30-day window)</div>
+              <div style={{fontSize:13,color:"rgba(255,255,255,.4)"}}>Check the Trades page for vote-proximity flags showing if any congressional votes occurred within 30 days of this trade.</div>
+            </div>
+            {/* Query 3: Filing timeliness */}
+            <div style={{padding:"12px 14px",background:trade.gap>45?"rgba(239,68,68,.04)":"rgba(34,197,94,.04)",border:"1px solid "+(trade.gap>45?"rgba(239,68,68,.1)":"rgba(34,197,94,.1)"),borderRadius:10}}>
+              <div style={{fontSize:13,fontWeight:700,color:trade.gap>45?"#fca5a5":"#4ade80",marginBottom:4}}>3. Disclosure Compliance</div>
+              <div style={{fontSize:13,color:"rgba(255,255,255,.4)"}}>{trade.gap>0?`Filed ${trade.gap} days after trade. ${trade.gap>45?"This exceeds the 45-day STOCK Act deadline.":"Within the 45-day STOCK Act deadline."}`:"Filing date not available for this trade."}</div>
+            </div>
+          </div>
+          <Disclaimer/>
+        </div>
       </div>
     </div>
   );
@@ -3653,10 +3670,17 @@ function AboutPage(){
 
 /* ── MEMBER VOTING RECORD (Voteview) ───────────────── */
 function MemberVotingRecord({pol}){
-  const[data,setData]=useState(null);const[showAll,setShowAll]=useState(false);const m=mob();
+  const[data,setData]=useState(null);const[showAll,setShowAll]=useState(false);const[voteFilter,setVoteFilter]=useState("all");const m=mob();
   useEffect(()=>{VOTEVIEW_P.then(mv=>{setData(mv[pol.bioguideId]||null);}).catch(()=>{});},[pol.bioguideId]);
   if(!data)return <div style={{color:"rgba(255,255,255,.25)",fontSize:13,padding:"12px 0"}}>Loading voting record...</div>;
-  const votes=showAll?data.votes:data.votes.slice(0,10);
+  const filteredVotes=useMemo(()=>{
+    let v=data.votes||[];
+    if(voteFilter==="yea")v=v.filter(x=>x.vote==="Yea");
+    else if(voteFilter==="nay")v=v.filter(x=>x.vote==="Nay");
+    else if(voteFilter==="absent")v=v.filter(x=>x.vote==="Absent");
+    return v;
+  },[data,voteFilter]);
+  const votes=showAll?filteredVotes:filteredVotes.slice(0,10);
   return(<div>
     <div style={{display:"grid",gridTemplateColumns:m?"1fr 1fr":"repeat(4,1fr)",gap:12,marginBottom:20}}>
       <div style={{background:"rgba(99,102,241,.06)",borderRadius:12,padding:14,textAlign:"center"}}><div style={{fontSize:22,fontWeight:900,color:"#6366f1"}}>{data.totalVotes}</div><div style={{fontSize:12,color:"rgba(255,255,255,.3)"}}>Total Votes</div></div>
@@ -3676,6 +3700,11 @@ function MemberVotingRecord({pol}){
       <div style={{fontSize:12,color:"rgba(255,255,255,.3)",marginTop:6,textAlign:"center"}}>Score: {data.info.nominate1.toFixed(3)} (range: -1 liberal to +1 conservative)</div>
     </div>}
     <div style={{fontSize:14,fontWeight:700,color:"#fff",marginBottom:12}}>Recent Roll Call Votes</div>
+    <div style={{display:"flex",gap:6,marginBottom:14,flexWrap:"wrap"}}>
+      {[["all","All"],["yea","Yea Only"],["nay","Nay Only"],["absent","Absent"]].map(([id,label])=>(
+        <button key={id} onClick={()=>setVoteFilter(id)} style={{padding:"6px 14px",borderRadius:8,border:"1px solid "+(voteFilter===id?"rgba(6,182,212,.4)":"rgba(255,255,255,.08)"),background:voteFilter===id?"rgba(6,182,212,.1)":"transparent",color:voteFilter===id?"#67e8f9":"rgba(255,255,255,.35)",fontSize:13,fontWeight:600,cursor:"pointer"}}>{label}</button>
+      ))}
+    </div>
     {votes.map((v,i)=>(
       <div key={i} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 0",borderBottom:"1px solid rgba(255,255,255,.04)"}}>
         <div style={{width:60,textAlign:"center"}}><span style={{fontSize:13,fontWeight:800,color:v.vote==="Yea"?"#4ade80":v.vote==="Nay"?"#f87171":v.vote==="Absent"?"#fbbf24":"#94a3b8",background:v.vote==="Yea"?"rgba(74,222,128,.1)":v.vote==="Nay"?"rgba(248,113,113,.1)":"rgba(255,255,255,.05)",padding:"3px 10px",borderRadius:6}}>{v.vote}</span></div>
@@ -3686,7 +3715,14 @@ function MemberVotingRecord({pol}){
         {v.yeaCount>0&&<div style={{fontSize:12,color:"rgba(255,255,255,.25)",flexShrink:0}}>{v.yeaCount}-{v.nayCount}</div>}
       </div>
     ))}
-    {data.votes.length>10&&<button onClick={()=>setShowAll(!showAll)} style={{marginTop:12,padding:"10px 20px",borderRadius:10,border:"1px solid rgba(99,102,241,.2)",background:"rgba(99,102,241,.06)",color:"#a5b4fc",fontSize:13,fontWeight:600,cursor:"pointer",width:"100%"}}>{showAll?`Show less`:`Show all ${data.votes.length} votes`}</button>}
+    {filteredVotes.length>10&&<button onClick={()=>setShowAll(!showAll)} style={{marginTop:12,padding:"10px 20px",borderRadius:10,border:"1px solid rgba(99,102,241,.2)",background:"rgba(99,102,241,.06)",color:"#a5b4fc",fontSize:13,fontWeight:600,cursor:"pointer",width:"100%"}}>{showAll?`Show less`:`Show all ${filteredVotes.length} votes`}</button>}
+    <button onClick={()=>{
+      const rows=[["Roll#","Date","Vote","Bill","Result","Question","Yea","Nay"]];
+      (data.votes||[]).forEach(v=>rows.push([v.rollNumber,v.date,v.vote,v.billNumber,v.result,v.question||v.description||"",v.yeaCount,v.nayCount]));
+      const csv=rows.map(r=>r.map(c=>'"'+(c||"").toString().replace(/"/g,'""')+'"').join(",")).join("\n");
+      const blob=new Blob([csv],{type:"text/csv"});const url=URL.createObjectURL(blob);
+      const a=document.createElement("a");a.href=url;a.download=`officium-votes-${pol.name.replace(/\s+/g,"-")}.csv`;a.click();URL.revokeObjectURL(url);
+    }} style={{marginTop:8,padding:"10px 20px",borderRadius:10,border:"1px solid rgba(6,182,212,.2)",background:"rgba(6,182,212,.06)",color:"#67e8f9",fontSize:13,fontWeight:600,cursor:"pointer"}}>Export Voting Record (CSV)</button>
     <Disclaimer/>
   </div>);
 }
@@ -3742,6 +3778,10 @@ function DonorExplorer({pols,onSelect}){
             <div style={{textAlign:"right"}}>
               <div style={{fontSize:16,fontWeight:800,color:"#10b981"}}>{p.raised>0?fmt(p.raised):"No FEC"}</div>
               {p.pacContrib>0&&<div style={{fontSize:12,color:"rgba(255,255,255,.3)"}}>PAC: {fmt(p.pacContrib)}</div>}
+              <div style={{display:"flex",gap:12,marginTop:4,justifyContent:"flex-end"}}>
+                {p.totalVotes>0&&<span style={{fontSize:12,color:"rgba(255,255,255,.25)"}}>{p.totalVotes} votes · {p.yeaPct}% Yea</span>}
+                {p.ideology!=null&&<span style={{fontSize:12,color:p.ideology<-0.3?"#3b82f6":p.ideology>0.3?"#ef4444":"#94a3b8"}}>{p.ideology<-0.3?"Liberal":p.ideology>0.3?"Conservative":"Moderate"}</span>}
+              </div>
             </div>
           </div>
         ))}

@@ -117,7 +117,9 @@
       "Bash(curl -s \"https://voteview.com/static/data/out/rollcalls/H119_rollcalls.csv\")",
       "Bash(node scripts/fetch-votes.mjs)",
       "Bash(curl -s \"https://voteview.com/static/data/out/members/S119_members.csv\")",
-      "Bash(python3)"
+      "Bash(python3)",
+      "Bash(curl -s \"https://efts.sec.gov/LATEST/search-index?q=senator&forms=4&dateRange=custom&startdt=2025-01-01&enddt=2026-01-01\" -H \"User-Agent: Officium officium@vote.com\")",
+      "Bash(python3 -c \" import sys,json try: d=json.load\\(sys.stdin\\) print\\(f'Keys: {list\\(d.keys\\(\\)\\)}'\\) print\\(f'Total: {d.get\\(\\\\\"total\\\\\",{}\\).get\\(\\\\\"value\\\\\",0\\)}'\\) except: print\\('parse failed: '+sys.stdin.read\\(\\)[:200]\\) \")"
     ]
   }
 }
